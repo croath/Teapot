@@ -1,0 +1,14 @@
+/target
+**/target
+**/*.rs.bk
+.DS_Store
+dist/
+app-ui/dist/
+app-ui/node_modules/
+app-ui/styles/app.css
+.trunk/
+*.log
+.env
+.idea/
+.vscode/
+.cargo-cache/

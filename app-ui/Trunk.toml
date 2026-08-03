@@ -1,0 +1,17 @@
+[build]
+target = "index.html"
+dist = "dist"
+
+[watch]
+watch = ["src", "index.html", "styles"]
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 1420
+open = false
+
+# Build Tailwind CSS with Bun before every Trunk compile
+[[hooks]]
+stage = "pre_build"
+command = "bun"
+command_arguments = ["run", "css:build"]

@@ -1,0 +1,47 @@
+# Teaport configuration
+# Copy or edit this file; the CLI also searches ./config.toml and the platform config dir.
+
+listen = "127.0.0.1:8080"
+# api_key = "change-me"
+default_agent = "codex"
+
+# Map request model ids -> agent names
+[model_map]
+codex = "codex"
+claude = "claude"
+grok = "grok"
+antigravity = "antigravity"
+"gpt-4o" = "codex"
+"gpt-4.1" = "codex"
+"claude-sonnet-4-20250514" = "claude"
+
+[agents.codex]
+name = "codex"
+command = "codex"
+args = ["exec", "--skip-git-repo-check", "{prompt}"]
+timeout_secs = 900
+description = "OpenAI Codex CLI agent"
+prompt_via_stdin = false
+# Optional: probe CLI for model ids (stdout parsed). Empty = skip probe.
+list_models_args = ["models"]
+
+[agents.claude]
+name = "claude"
+command = "claude"
+args = ["-p", "--output-format", "text", "{prompt}"]
+timeout_secs = 900
+description = "Anthropic Claude Code CLI agent"
+
+[agents.grok]
+name = "grok"
+command = "grok"
+args = ["{prompt}"]
+timeout_secs = 900
+description = "xAI Grok CLI agent"
+
+[agents.antigravity]
+name = "antigravity"
+command = "antigravity-cli"
+args = ["{prompt}"]
+timeout_secs = 900
+description = "Antigravity CLI agent"

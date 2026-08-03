@@ -1,0 +1,28 @@
+[package]
+name = "teaport-tauri"
+description = "Teaport desktop shell (Tauri)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "teaport_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+teaport-core = { workspace = true }
+
+tauri = { workspace = true }
+tauri-plugin-shell = { workspace = true }
+
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+anyhow = { workspace = true }

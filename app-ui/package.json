@@ -1,0 +1,19 @@
+{
+  "name": "teaport-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "css:build": "bunx @tailwindcss/cli -i ./styles/input.css -o ./styles/app.css --minify",
+    "css:watch": "bunx @tailwindcss/cli -i ./styles/input.css -o ./styles/app.css --watch",
+    "predev": "bun run css:build",
+    "dev": "bun run --parallel css:watch trunk:serve",
+    "trunk:serve": "trunk serve",
+    "build": "bun run css:build && trunk build --release",
+    "preview": "bun run build && trunk serve --release"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.11",
+    "tailwindcss": "^4.1.11"
+  }
+}
