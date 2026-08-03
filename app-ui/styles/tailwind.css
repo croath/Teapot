@@ -1,0 +1,655 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Trunk scans Leptos view! class strings */
+@source "../src/**/*.rs";
+@source "../index.html";
+
+/*
+ * Teapot liquid-glass theme.
+ * Primary brand: #1179ac
+ */
+:root,
+.dark {
+  --radius: 1rem;
+  --primary-hex: #1179ac;
+
+  /* Transparent canvas so macOS window effect shows through */
+  --background: transparent;
+  --foreground: oklch(0.97 0.01 230);
+  --card: oklch(1 0 0 / 0.1);
+  --card-foreground: oklch(0.97 0.01 230);
+  --popover: oklch(0.22 0.03 230 / 0.85);
+  --popover-foreground: oklch(0.97 0.01 230);
+
+  --primary: #1179ac;
+  --primary-foreground: #ffffff;
+
+  --secondary: oklch(1 0 0 / 0.1);
+  --secondary-foreground: oklch(0.96 0.01 230);
+  --muted: oklch(1 0 0 / 0.08);
+  --muted-foreground: oklch(0.78 0.03 230);
+  --accent: oklch(0.55 0.1 230 / 0.28);
+  --accent-foreground: oklch(0.98 0.01 230);
+  --destructive: oklch(0.62 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(1 0 0 / 0.16);
+  --input: oklch(1 0 0 / 0.12);
+  --ring: #1179ac;
+
+  --success: oklch(0.72 0.17 150);
+  --success-foreground: oklch(0.18 0.04 150);
+  --success-light: oklch(0.72 0.17 150 / 0.18);
+  --success-dark: oklch(0.85 0.12 150);
+  --warning: oklch(0.84 0.14 95);
+  --warning-foreground: oklch(0.25 0.05 90);
+  --warning-light: oklch(0.84 0.14 95 / 0.16);
+  --warning-dark: oklch(0.9 0.1 95);
+  --info: #1179ac;
+  --info-foreground: #ffffff;
+  --info-light: color-mix(in srgb, #1179ac 22%, transparent);
+  --info-dark: color-mix(in srgb, #1179ac 70%, white);
+}
+
+@theme inline {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI",
+    "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    "SF Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-light: var(--success-light);
+  --color-success-dark: var(--success-dark);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-light: var(--warning-light);
+  --color-warning-dark: var(--warning-dark);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-light: var(--info-light);
+  --color-info-dark: var(--info-dark);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    color-scheme: dark;
+    height: 100%;
+    background: transparent;
+  }
+
+  body {
+    @apply m-0 min-h-screen font-sans text-foreground antialiased;
+    height: 100%;
+    /* Soft liquid wash using brand primary; stays translucent for OS glass */
+    background-color: transparent;
+    background-image:
+      radial-gradient(720px 420px at 18% -6%, color-mix(in srgb, #1179ac 42%, transparent) 0%, transparent 58%),
+      radial-gradient(640px 380px at 96% 12%, color-mix(in srgb, #1179ac 22%, transparent) 0%, transparent 55%),
+      radial-gradient(560px 420px at 50% 110%, color-mix(in srgb, #0a4d6e 28%, transparent) 0%, transparent 52%),
+      linear-gradient(
+        165deg,
+        color-mix(in srgb, #0b1c28 72%, transparent) 0%,
+        color-mix(in srgb, #0a1520 78%, transparent) 48%,
+        color-mix(in srgb, #071018 85%, transparent) 100%
+      );
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body::before {
+    content: "";
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  #root,
+  body > div {
+    position: relative;
+    z-index: 1;
+    min-height: 100%;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, #1179ac 40%, transparent);
+    color: white;
+  }
+
+  code {
+    @apply rounded-md border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[0.88em] text-foreground;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  dialog {
+    margin: auto;
+  }
+
+  option {
+    background-color: #0e2430;
+    color: var(--foreground);
+  }
+}
+
+@layer components {
+  /* Full-window shell under transparent / overlay titlebar */
+  .app-root {
+    @apply relative flex min-h-screen flex-col;
+    min-height: 100dvh;
+  }
+
+  .titlebar-drag {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 52px;
+    z-index: 40;
+    /* Leave room for traffic lights on the left */
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  .app-main {
+    @apply relative flex min-h-0 flex-1 flex-col;
+    padding: 56px 18px 28px;
+  }
+
+  /* Top-right Settings gear (opens macOS-style Settings hub). */
+  .app-settings-btn-wrap {
+    position: fixed;
+    top: 12px;
+    right: 14px;
+    z-index: 60;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+
+  .app-settings-btn-wrap > a {
+    @apply block no-underline text-foreground;
+  }
+
+  .app-settings-btn {
+    @apply flex size-9 items-center justify-center rounded-full border border-border transition-all;
+    background: linear-gradient(
+      165deg,
+      oklch(1 0 0 / 0.2) 0%,
+      oklch(1 0 0 / 0.06) 100%
+    );
+    box-shadow:
+      0 1px 0 0 oklch(1 0 0 / 0.16) inset,
+      0 8px 22px -10px oklch(0 0 0 / 0.55);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+  }
+
+  .app-settings-btn-wrap > a:hover .app-settings-btn {
+    background: linear-gradient(
+      165deg,
+      color-mix(in srgb, #1179ac 35%, oklch(1 0 0 / 0.18)) 0%,
+      oklch(1 0 0 / 0.08) 100%
+    );
+    border-color: color-mix(in srgb, #1179ac 40%, transparent);
+    transform: scale(1.04);
+  }
+
+  .app-settings-btn-wrap > a:active .app-settings-btn {
+    transform: scale(0.96);
+  }
+
+  /* ── macOS System Settings–style shell ───────────────────────────────── */
+
+  .settings-shell {
+    @apply mx-auto flex w-full max-w-md flex-col gap-5;
+    animation: settings-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .settings-shell-detail {
+    @apply min-h-0 flex-1;
+  }
+
+  @keyframes settings-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .settings-hero {
+    @apply relative px-1 pt-1;
+  }
+
+  .settings-done {
+    @apply absolute top-1 right-0;
+  }
+
+  .settings-done a {
+    @apply text-sm font-semibold no-underline transition-opacity;
+    color: #5eb8e8;
+    text-shadow: 0 0 18px color-mix(in srgb, #1179ac 45%, transparent);
+  }
+
+  .settings-done a:hover {
+    opacity: 0.85;
+  }
+
+  .settings-large-title {
+    @apply text-[1.85rem] font-bold tracking-tight;
+    letter-spacing: -0.035em;
+    background: linear-gradient(
+      120deg,
+      oklch(0.98 0.01 230) 0%,
+      color-mix(in srgb, #1179ac 55%, white) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .settings-hero-sub {
+    @apply text-muted-foreground mt-1 max-w-[18rem] text-[13px] leading-relaxed;
+  }
+
+  /* Grouped list (inset rounded glass, like macOS Settings rows) */
+  .settings-group {
+    @apply overflow-hidden rounded-[18px] border border-border;
+    background: linear-gradient(
+      155deg,
+      oklch(1 0 0 / 0.14) 0%,
+      oklch(1 0 0 / 0.05) 48%,
+      color-mix(in srgb, #1179ac 10%, transparent) 100%
+    );
+    box-shadow:
+      0 1px 0 0 oklch(1 0 0 / 0.12) inset,
+      0 -1px 0 0 oklch(0 0 0 / 0.18) inset,
+      0 16px 40px -18px oklch(0 0 0 / 0.5);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+  }
+
+  .settings-group > a {
+    @apply relative flex items-center gap-3 px-3.5 py-3 no-underline transition-colors;
+    color: inherit;
+  }
+
+  .settings-group > a + a::before {
+    content: "";
+    position: absolute;
+    left: 3.75rem;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: oklch(1 0 0 / 0.08);
+  }
+
+  .settings-group > a:hover {
+    background: oklch(1 0 0 / 0.06);
+  }
+
+  .settings-group > a:active {
+    background: oklch(1 0 0 / 0.1);
+  }
+
+  .settings-row-icon {
+    @apply flex size-9 shrink-0 items-center justify-center rounded-[11px] text-white;
+    box-shadow:
+      0 1px 0 oklch(1 0 0 / 0.28) inset,
+      0 6px 14px -6px oklch(0 0 0 / 0.45);
+  }
+
+  .settings-row-icon-generate {
+    background: linear-gradient(145deg, #3aa0d8, #1179ac 55%, #0a5a82);
+  }
+
+  .settings-row-icon-debug {
+    background: linear-gradient(145deg, #f0a050, #d97706 55%, #b45309);
+  }
+
+  .settings-row-icon-about {
+    background: linear-gradient(145deg, #8b9cb3, #64748b 55%, #475569);
+  }
+
+  .settings-row-text {
+    @apply flex min-w-0 flex-1 flex-col gap-0.5 text-left;
+  }
+
+  .settings-row-title {
+    @apply text-[15px] font-semibold tracking-tight;
+  }
+
+  .settings-row-sub {
+    @apply text-muted-foreground truncate text-xs;
+  }
+
+  .settings-row-chevron {
+    @apply shrink-0 text-muted-foreground/70;
+  }
+
+  /* Detail panes */
+  .settings-detail-bar {
+    @apply relative mb-4 px-1 pt-0.5;
+  }
+
+  .settings-back {
+    @apply mb-2;
+  }
+
+  .settings-back a {
+    @apply inline-flex items-center gap-0.5 text-sm font-semibold no-underline transition-opacity;
+    color: #5eb8e8;
+  }
+
+  .settings-back a:hover {
+    opacity: 0.85;
+  }
+
+  .settings-back-chevron {
+    @apply -ml-1 text-2xl font-normal leading-none;
+    margin-top: -2px;
+  }
+
+  .settings-detail-title {
+    @apply text-2xl font-bold tracking-tight;
+    letter-spacing: -0.03em;
+  }
+
+  .settings-detail-sub {
+    @apply text-muted-foreground mt-0.5 text-[13px];
+  }
+
+  .settings-detail-body {
+    @apply flex flex-col gap-4;
+  }
+
+  .settings-group-form {
+    @apply space-y-0 p-0;
+  }
+
+  .settings-field {
+    @apply flex flex-col gap-1.5 px-4 py-3.5 text-left;
+  }
+
+  .settings-field + .settings-field {
+    border-top: 1px solid oklch(1 0 0 / 0.08);
+  }
+
+  .settings-input {
+    @apply bg-black/20!;
+  }
+
+  .settings-path {
+    @apply text-muted-foreground border-t border-white/5 px-4 py-3 text-[10px] leading-relaxed break-all;
+  }
+
+  .settings-footer-actions {
+    @apply flex justify-end px-1;
+  }
+
+  .settings-primary-btn {
+    @apply min-w-32 shadow-lg!;
+    box-shadow: 0 8px 20px -8px color-mix(in srgb, #1179ac 70%, transparent) !important;
+  }
+
+  .settings-toolbar {
+    @apply flex flex-wrap justify-end gap-2 px-1;
+  }
+
+  .settings-chip-btn {
+    @apply rounded-full!;
+  }
+
+  .settings-log-card {
+    @apply p-0;
+  }
+
+  .settings-log-card .log-view {
+    @apply max-h-[min(48vh,26rem)] min-h-44;
+  }
+
+  /* About pane */
+  .settings-about {
+    @apply flex flex-col gap-4;
+  }
+
+  .settings-about-hero {
+    @apply relative flex flex-col items-center gap-2 px-4 py-8 text-center;
+  }
+
+  .settings-about-glow {
+    position: absolute;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      color-mix(in srgb, #1179ac 45%, transparent) 0%,
+      transparent 70%
+    );
+    filter: blur(8px);
+    pointer-events: none;
+  }
+
+  .settings-about-icon {
+    @apply relative size-24 rounded-[26px];
+    box-shadow:
+      0 16px 36px -12px color-mix(in srgb, #1179ac 55%, transparent),
+      0 1px 0 oklch(1 0 0 / 0.25) inset;
+  }
+
+  .settings-about-name {
+    @apply relative mt-2 text-2xl font-bold tracking-tight;
+    letter-spacing: -0.03em;
+  }
+
+  .settings-about-version {
+    @apply text-muted-foreground relative text-sm;
+  }
+
+  .settings-about-blurb {
+    @apply px-4 py-3.5 text-center text-sm leading-relaxed text-muted-foreground;
+  }
+
+  .page-center {
+    @apply flex flex-1 flex-col items-center justify-center;
+  }
+
+  .page-stack {
+    @apply mx-auto flex w-full max-w-md flex-col gap-4;
+  }
+
+  .page-stack-fill {
+    @apply min-h-0 flex-1;
+    height: 100%;
+  }
+
+  .page-header {
+    @apply space-y-1 px-1;
+  }
+
+  .page-header-row {
+    @apply flex items-start justify-between gap-3;
+  }
+
+  .page-title {
+    @apply text-xl font-semibold tracking-tight;
+    letter-spacing: -0.02em;
+  }
+
+  .page-desc {
+    @apply text-muted-foreground text-sm;
+  }
+
+  .glass-panel {
+    @apply relative w-full rounded-3xl border border-border px-6 py-6;
+    background: linear-gradient(
+      155deg,
+      oklch(1 0 0 / 0.16) 0%,
+      oklch(1 0 0 / 0.06) 42%,
+      color-mix(in srgb, #1179ac 12%, transparent) 100%
+    );
+    box-shadow:
+      0 1px 0 0 oklch(1 0 0 / 0.14) inset,
+      0 -1px 0 0 oklch(0 0 0 / 0.2) inset,
+      0 18px 48px -16px oklch(0 0 0 / 0.45);
+    backdrop-filter: blur(36px) saturate(180%);
+    -webkit-backdrop-filter: blur(36px) saturate(180%);
+  }
+
+  /* Home: short intro + status + switch */
+  .home-simple {
+    @apply flex flex-col items-center gap-5;
+  }
+
+  .home-intro {
+    @apply mb-1 max-w-[17rem] space-y-1.5 text-center;
+  }
+
+  .home-name {
+    @apply text-2xl font-semibold tracking-tight;
+    letter-spacing: -0.03em;
+  }
+
+  .home-blurb {
+    @apply text-muted-foreground text-sm leading-relaxed;
+  }
+
+  .home-error {
+    @apply rounded-xl border border-destructive/35 bg-destructive/15 px-3 py-2 text-left text-sm text-destructive-foreground;
+  }
+
+  .home-error-compact {
+    @apply mt-1 max-w-[16rem] text-center;
+  }
+
+  .status-dot {
+    @apply inline-block size-1.5 rounded-full;
+  }
+
+  .status-dot-on {
+    background: #4ade80;
+    box-shadow: 0 0 8px #4ade80;
+  }
+
+  .status-dot-off {
+    @apply bg-muted-foreground/70;
+  }
+
+  .settings-card {
+    @apply space-y-5;
+  }
+
+  .field-stack {
+    @apply flex flex-col gap-1.5 text-left;
+  }
+
+  .field-hint {
+    @apply text-muted-foreground text-xs leading-relaxed;
+  }
+
+  .settings-actions {
+    @apply flex flex-wrap gap-2 pt-1;
+  }
+
+  .form-ok {
+    @apply rounded-xl border border-success/30 bg-success-light px-3 py-2 text-sm text-success-dark;
+  }
+
+  .debug-actions {
+    @apply flex shrink-0 flex-wrap gap-2;
+  }
+
+  .debug-panel {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden p-0;
+  }
+
+  .log-view {
+    @apply text-muted-foreground m-0 max-h-[min(52vh,28rem)] min-h-48 flex-1 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-[11px] leading-relaxed;
+  }
+
+  .about-card {
+    @apply max-w-sm space-y-3 text-center;
+  }
+
+  .about-icon {
+    @apply mx-auto mb-2 flex size-24 items-center justify-center;
+  }
+
+  .about-icon-img {
+    @apply size-20 rounded-[22px] shadow-lg;
+    box-shadow: 0 12px 28px -10px color-mix(in srgb, #1179ac 50%, transparent);
+  }
+
+  .about-name {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+
+  .about-version {
+    @apply text-muted-foreground text-sm;
+  }
+
+  .about-blurb {
+    @apply text-muted-foreground text-sm leading-relaxed;
+  }
+
+  .about-meta {
+    @apply pt-2;
+  }
+
+  /* Glass elevation on registry Card roots (if used) */
+  [data-name="Card"] {
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    background: linear-gradient(
+      165deg,
+      oklch(1 0 0 / 0.14) 0%,
+      oklch(1 0 0 / 0.05) 38%,
+      color-mix(in srgb, #1179ac 10%, transparent) 100%
+    );
+    box-shadow:
+      0 1px 0 0 oklch(1 0 0 / 0.1) inset,
+      0 -1px 0 0 oklch(0 0 0 / 0.15) inset,
+      0 18px 50px -12px oklch(0 0 0 / 0.5);
+  }
+}

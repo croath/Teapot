@@ -1,6 +1,9 @@
-//! Binary entry for Trunk / local WASM builds.
+//! Native / non-WASM entry (not used by Trunk; see `lib.rs` for the WASM start).
+//!
+//! Kept so `cargo check -p teapot-ui` works without a wasm target.
 
 fn main() {
-  console_error_panic_hook::set_once();
-  leptos::mount::mount_to_body(teaport_ui::App);
+  eprintln!(
+    "teapot-ui is a WASM frontend. Build with Trunk:\n  cd app-ui && bun run dev\n  # or: trunk serve"
+  );
 }

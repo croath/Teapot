@@ -1,22 +1,45 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Teaport",
+  "productName": "Teapot",
   "version": "0.1.0",
-  "identifier": "dev.teaport.app",
+  "identifier": "com.cdxtheme.teapot",
   "build": {
-    "beforeDevCommand": "cd ../app-ui && bun run dev",
+    "beforeDevCommand": {
+      "script": "bash ../scripts/ensure-sidecar.sh && bun run dev",
+      "cwd": "../app-ui"
+    },
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "cd ../app-ui && bun run build",
+    "beforeBuildCommand": {
+      "script": "bash ../scripts/prepare-sidecar.sh release && bun run build",
+      "cwd": "../app-ui"
+    },
     "frontendDist": "../app-ui/dist"
   },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Teaport",
-        "width": 1100,
-        "height": 760,
-        "resizable": true
+        "label": "main",
+        "title": "Teapot",
+        "width": 420,
+        "height": 680,
+        "minWidth": 360,
+        "minHeight": 560,
+        "resizable": true,
+        "center": true,
+        "decorations": true,
+        "transparent": true,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 18
+        },
+        "windowEffects": {
+          "effects": ["hudWindow"],
+          "state": "active"
+        },
+        "backgroundColor": [0, 0, 0, 0]
       }
     ],
     "security": {
@@ -26,13 +49,17 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["binaries/teapotx"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/henry.w@example.net",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "15.0"
+    }
   },
   "plugins": {}
 }

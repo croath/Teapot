@@ -1,11 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Teaport</title>
-    <link data-trunk rel="css" href="styles/app.css" />
-    <link data-trunk rel="rust" data-wasm-opt="z" />
+    <title>Teapot</title>
+    <!-- Trunk compiles this with the official Tailwind CLI ([tools].tailwindcss). -->
+    <link data-trunk rel="tailwind-css" href="styles/tailwind.css" />
+    <!-- App icon for About page -->
+    <link data-trunk rel="copy-file" href="app-icon.png" />
+    <!-- Select the cdylib only (package also has a bin target named teapot-ui). -->
+    <link
+      data-trunk
+      rel="rust"
+      data-target-name="teapot_ui"
+      data-wasm-opt="z"
+      data-wasm-opt-params="--enable-bulk-memory --enable-bulk-memory-opt --enable-nontrapping-float-to-int"
+    />
   </head>
   <body></body>
 </html>

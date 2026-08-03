@@ -10,8 +10,6 @@ addresses = ["127.0.0.1"]
 port = 1420
 open = false
 
-# Build Tailwind CSS with Bun before every Trunk compile
-[[hooks]]
-stage = "pre_build"
-command = "bun"
-command_arguments = ["run", "css:build"]
+[tools]
+# Must match a version Trunk can download; processes style/tailwind.css via rel="tailwind-css"
+tailwindcss = "4.3.3"

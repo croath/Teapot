@@ -3,12 +3,17 @@
 mod auth;
 pub mod chatgpt;
 pub mod claude;
-mod models;
+mod request_log;
 mod server;
 mod state;
+pub mod surface;
 
-pub use models::{
-  anthropic_get_model, anthropic_model_list, list_discovered, openai_get_model, openai_model_list,
+pub use chatgpt::models::{openai_get_model, openai_model_list};
+pub use claude::models::{anthropic_get_model, anthropic_model_list};
+pub use server::{
+  ServerHandle, build_router, build_router_with_surfaces, serve, serve_with_shutdown, start_server,
 };
-pub use server::{build_router, serve, serve_with_shutdown, start_server, ServerHandle};
 pub use state::AppState;
+pub use surface::{
+  ApiSurface, ChatGptSurface, ClaudeSurface, default_surface_list, mount_surfaces,
+};

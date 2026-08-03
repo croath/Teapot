@@ -1,6 +1,6 @@
 [package]
-name = "teaport-core"
-description = "Teaport core: ChatGPT/Claude compatible API server that shells out to agent CLIs"
+name = "teapot-core"
+description = "Teapot core: ChatGPT/Claude compatible API server that shells out to provider CLIs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,8 +10,6 @@ rust-version.workspace = true
 [dependencies]
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["sync"] }
-futures = { workspace = true }
-async-stream = { workspace = true }
 bytes = { workspace = true }
 
 axum = { workspace = true, features = ["macros"] }
@@ -33,6 +31,11 @@ uuid = { workspace = true, features = ["v4", "serde"] }
 chrono = { workspace = true, features = ["serde"] }
 which = { workspace = true }
 directories = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+rand = { workspace = true }
+url = { workspace = true }
+jsonwebtoken = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = [

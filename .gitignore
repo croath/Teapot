@@ -7,8 +7,11 @@ app-ui/dist/
 app-ui/node_modules/
 app-ui/styles/app.css
 .trunk/
+# Host-triple sidecar binaries (regenerate with scripts/prepare-sidecar.sh)
+app-tauri/binaries/teapotx-*
 *.log
 .env
 .idea/
 .vscode/
 .cargo-cache/
+.grok/

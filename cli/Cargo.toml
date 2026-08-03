@@ -1,6 +1,6 @@
 [package]
-name = "teaport"
-description = "Teaport CLI — ChatGPT/Claude compatible API over local agent CLIs"
+name = "teapot-cli"
+description = "Teapot CLI — ChatGPT/Claude compatible API over local agent CLIs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,11 +8,11 @@ authors.workspace = true
 rust-version.workspace = true
 
 [[bin]]
-name = "teaport"
+name = "teapotx"
 path = "src/main.rs"
 
 [dependencies]
-teaport-core = { workspace = true }
+teapot-core = { workspace = true }
 
 tokio = { workspace = true, features = ["full"] }
 clap = { workspace = true, features = ["derive", "env"] }
@@ -22,3 +22,4 @@ anyhow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 toml = { workspace = true }
+chrono = { workspace = true }

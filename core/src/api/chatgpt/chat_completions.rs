@@ -1,125 +1,152 @@
 //! OpenAI Chat Completions: POST /chatgpt/v1/chat/completions
+//!
+//! Supports non-stream JSON and true SSE streaming (`stream: true`) via each
+//! provider's `execute_stream`.
 
-use std::convert::Infallible;
-
-use async_stream::stream;
 use axum::extract::State;
-use axum::response::sse::Event;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use chrono::Utc;
-use uuid::Uuid;
+use tokio_stream::StreamExt;
 
-use crate::agents::{flatten_messages, AgentEvent};
+use super::json::OpenAiJson;
 use crate::api::state::AppState;
-use crate::error::{AppError, AppResult};
-use crate::models::openai::*;
-use crate::stream::{openai_data_event, openai_done_event, sse_response};
+use crate::error::{AppError, OpenAiResult};
+use crate::models::openai::{
+  ChatChoice, ChatChunkChoice, ChatCompletionChunk, ChatCompletionRequest, ChatCompletionResponse,
+  ChatContent, ChatDelta, ChatMessage,
+};
+use crate::providers::execute::{ExecRequest, ExecStreamEvent};
+use crate::stream::{openai_data_event, openai_done_event, send_sse, sse_channel, sse_response};
 
 pub async fn chat_completions(
   State(state): State<AppState>,
-  Json(req): Json<ChatCompletionRequest>,
-) -> AppResult<Response> {
+  OpenAiJson(req): OpenAiJson<ChatCompletionRequest>,
+) -> OpenAiResult<Response> {
   if req.messages.is_empty() {
-    return Err(AppError::BadRequest("messages must not be empty".into()));
+    return Err(AppError::BadRequest("messages must not be empty".into()).into());
   }
 
-  let model = req.model.clone();
-  let agent_model = req
-    .agent
-    .clone()
-    .unwrap_or_else(|| model.clone());
+  tracing::info!(
+    model = %req.model,
+    stream = req.stream,
+    messages = req.messages.len(),
+    "chat/completions"
+  );
 
-  let msgs: Vec<(String, String)> = req
-    .messages
-    .iter()
-    .map(|m| (m.role.clone(), m.content.as_text()))
-    .collect();
-  let (system, prompt) = flatten_messages(None, &msgs);
+  // No automatic provider/model adaptation: model must be in the pinned catalog.
+  state.runtime.models().require(&req.model).await?;
+
+  // Keep provider's own session fresh before use (does not run inside execute).
+  state.runtime.refresh_access_token_if_needed().await?;
+
+  let exec_req = ExecRequest::from_chat(&req);
 
   if req.stream {
-    Ok(stream_chat(state, agent_model, model, system, prompt).await?)
+    stream_completions(state, exec_req).await
   } else {
-    Ok(complete_chat(state, &agent_model, model, system.as_deref(), &prompt).await?)
+    let result = state.provider.execute(&exec_req).await?;
+    tracing::info!(
+      id = %result.id,
+      model = %result.model,
+      prompt_tokens = result.usage.prompt_tokens,
+      completion_tokens = result.usage.completion_tokens,
+      "chat/completions done"
+    );
+    let body = ChatCompletionResponse {
+      id: result.id,
+      object: "chat.completion",
+      created: Utc::now().timestamp(),
+      model: result.model,
+      choices: vec![ChatChoice {
+        index: 0,
+        message: ChatMessage {
+          role: "assistant".into(),
+          content: ChatContent::Text(result.content),
+          name: None,
+        },
+        finish_reason: Some("stop"),
+      }],
+      usage: result.usage,
+    };
+    Ok(OpenAiJson(body).into_response())
   }
 }
 
-async fn complete_chat(
-  state: AppState,
-  agent_model: &str,
-  model: String,
-  system: Option<&str>,
-  prompt: &str,
-) -> AppResult<Response> {
-  let text = state.runner.run_collect(agent_model, system, prompt).await?;
-  let id = format!("chatcmpl-{}", Uuid::new_v4().simple());
+async fn stream_completions(state: AppState, exec_req: ExecRequest) -> OpenAiResult<Response> {
+  let mut upstream = state.provider.execute_stream(&exec_req).await?;
+
+  let id = format!("chatcmpl-{}", uuid::Uuid::new_v4().simple());
+  let mut model = exec_req.model.clone();
   let created = Utc::now().timestamp();
-  let completion_tokens = estimate_tokens(&text);
-  let prompt_tokens = estimate_tokens(prompt);
+  let (tx, rx) = sse_channel(64);
 
-  let body = ChatCompletionResponse {
-    id,
-    object: "chat.completion",
-    created,
-    model,
-    choices: vec![ChatChoice {
-      index: 0,
-      message: ChatMessage {
-        role: "assistant".into(),
-        content: ChatContent::Text(text),
-        name: None,
-      },
-      finish_reason: Some("stop"),
-    }],
-    usage: Usage {
-      prompt_tokens,
-      completion_tokens,
-      total_tokens: prompt_tokens + completion_tokens,
-    },
-  };
-  Ok(Json(body).into_response())
-}
+  tokio::spawn(async move {
+    let mut sent_role = false;
+    let mut stream_id = id.clone();
 
-async fn stream_chat(
-  state: AppState,
-  agent_model: String,
-  model: String,
-  system: Option<String>,
-  prompt: String,
-) -> AppResult<Response> {
-  let mut session = state
-    .runner
-    .run(&agent_model, system.as_deref(), &prompt)
-    .await?;
-
-  let id = format!("chatcmpl-{}", Uuid::new_v4().simple());
-  let created = Utc::now().timestamp();
-
-  let s = stream! {
-    // Role chunk first (OpenAI convention)
-    let first = ChatCompletionChunk {
-      id: id.clone(),
-      object: "chat.completion.chunk",
-      created,
-      model: model.clone(),
-      choices: vec![ChatChunkChoice {
-        index: 0,
-        delta: ChatDelta {
-          role: Some("assistant"),
-          content: None,
-        },
-        finish_reason: None,
-      }],
-    };
-    if let Ok(json) = serde_json::to_string(&first) {
-      yield Ok::<Event, Infallible>(openai_data_event(&json));
-    }
-
-    loop {
-      match session.recv().await {
-        Some(AgentEvent::Token(text)) => {
+    while let Some(item) = upstream.next().await {
+      match item {
+        Ok(ExecStreamEvent::Meta { model: m, id: eid }) => {
+          if let Some(m) = m.filter(|s| !s.is_empty()) {
+            model = m;
+          }
+          if let Some(eid) = eid.filter(|s| !s.is_empty()) {
+            stream_id = eid;
+          }
+        }
+        Ok(ExecStreamEvent::ContentDelta { text }) => {
+          if text.is_empty() {
+            continue;
+          }
+          if !sent_role {
+            sent_role = true;
+            let first = ChatCompletionChunk {
+              id: stream_id.clone(),
+              object: "chat.completion.chunk",
+              created,
+              model: model.clone(),
+              choices: vec![ChatChunkChoice {
+                index: 0,
+                delta: ChatDelta {
+                  role: Some("assistant"),
+                  content: Some(text),
+                  reasoning_content: None,
+                  status: None,
+                },
+                finish_reason: None,
+              }],
+            };
+            if let Ok(json) = serde_json::to_string(&first) {
+              send_sse(&tx, openai_data_event(&json)).await;
+            }
+          } else {
+            let chunk = ChatCompletionChunk {
+              id: stream_id.clone(),
+              object: "chat.completion.chunk",
+              created,
+              model: model.clone(),
+              choices: vec![ChatChunkChoice {
+                index: 0,
+                delta: ChatDelta {
+                  role: None,
+                  content: Some(text),
+                  reasoning_content: None,
+                  status: None,
+                },
+                finish_reason: None,
+              }],
+            };
+            if let Ok(json) = serde_json::to_string(&chunk) {
+              send_sse(&tx, openai_data_event(&json)).await;
+            }
+          }
+        }
+        Ok(ExecStreamEvent::ReasoningDelta { text }) => {
+          if text.is_empty() {
+            continue;
+          }
           let chunk = ChatCompletionChunk {
-            id: id.clone(),
+            id: stream_id.clone(),
             object: "chat.completion.chunk",
             created,
             model: model.clone(),
@@ -127,54 +154,103 @@ async fn stream_chat(
               index: 0,
               delta: ChatDelta {
                 role: None,
-                content: Some(text),
+                content: None,
+                reasoning_content: Some(text),
+                status: None,
               },
               finish_reason: None,
             }],
           };
           if let Ok(json) = serde_json::to_string(&chunk) {
-            yield Ok(openai_data_event(&json));
+            send_sse(&tx, openai_data_event(&json)).await;
           }
         }
-        Some(AgentEvent::Stderr(_)) => {}
-        Some(AgentEvent::Done { .. }) => {
+        Ok(ExecStreamEvent::Done { finish_reason, .. }) => {
+          if !sent_role {
+            // Empty completion: still emit a role-only chunk for client compatibility.
+            let first = ChatCompletionChunk {
+              id: stream_id.clone(),
+              object: "chat.completion.chunk",
+              created,
+              model: model.clone(),
+              choices: vec![ChatChunkChoice {
+                index: 0,
+                delta: ChatDelta {
+                  role: Some("assistant"),
+                  content: None,
+                  reasoning_content: None,
+                  status: None,
+                },
+                finish_reason: None,
+              }],
+            };
+            if let Ok(json) = serde_json::to_string(&first) {
+              send_sse(&tx, openai_data_event(&json)).await;
+            }
+          }
           let last = ChatCompletionChunk {
-            id: id.clone(),
+            id: stream_id.clone(),
             object: "chat.completion.chunk",
             created,
             model: model.clone(),
             choices: vec![ChatChunkChoice {
               index: 0,
               delta: ChatDelta::default(),
-              finish_reason: Some("stop"),
+              finish_reason: finish_reason.or(Some("stop")),
             }],
           };
           if let Ok(json) = serde_json::to_string(&last) {
-            yield Ok(openai_data_event(&json));
+            send_sse(&tx, openai_data_event(&json)).await;
           }
-          yield Ok(openai_done_event());
-          break;
+          send_sse(&tx, openai_done_event()).await;
+          return;
         }
-        Some(AgentEvent::Failed(msg)) => {
-          let err = serde_json::json!({
-            "error": { "message": msg, "type": "api_error" }
-          });
-          yield Ok(openai_data_event(&err.to_string()));
-          yield Ok(openai_done_event());
-          break;
-        }
-        None => {
-          yield Ok(openai_done_event());
-          break;
+        Err(e) => {
+          tracing::warn!(error = %e, "chat completions stream error");
+          // Best-effort error as a final content chunk, then close.
+          let err_text = format!("[error] {e}");
+          let chunk = ChatCompletionChunk {
+            id: stream_id.clone(),
+            object: "chat.completion.chunk",
+            created,
+            model: model.clone(),
+            choices: vec![ChatChunkChoice {
+              index: 0,
+              delta: ChatDelta {
+                role: if sent_role { None } else { Some("assistant") },
+                content: Some(err_text),
+                reasoning_content: None,
+                status: None,
+              },
+              finish_reason: Some("stop"),
+            }],
+          };
+          if let Ok(json) = serde_json::to_string(&chunk) {
+            send_sse(&tx, openai_data_event(&json)).await;
+          }
+          send_sse(&tx, openai_done_event()).await;
+          return;
         }
       }
     }
-  };
 
-  Ok(sse_response(s).into_response())
-}
+    // Upstream closed without Done.
+    let last = ChatCompletionChunk {
+      id: stream_id,
+      object: "chat.completion.chunk",
+      created,
+      model,
+      choices: vec![ChatChunkChoice {
+        index: 0,
+        delta: ChatDelta::default(),
+        finish_reason: Some("stop"),
+      }],
+    };
+    if let Ok(json) = serde_json::to_string(&last) {
+      send_sse(&tx, openai_data_event(&json)).await;
+    }
+    send_sse(&tx, openai_done_event()).await;
+  });
 
-fn estimate_tokens(s: &str) -> u32 {
-  // Rough heuristic: ~4 chars per token
-  ((s.len() as u32) / 4).max(1)
+  Ok(sse_response(rx).into_response())
 }

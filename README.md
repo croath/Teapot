@@ -1,33 +1,33 @@
-# Teaport
+# Teapot
 
-Expose local **agent CLIs** (`codex`, `claude`, `grok`, `antigravity-cli`) as **ChatGPT-compatible** and **Claude-compatible** HTTP APIs, with streaming support.
+Expose local **provider CLIs** as **ChatGPT-compatible** and **Claude-compatible** HTTP APIs, with streaming support.
+
+Each provider implements the `Provider` trait: Teapot expands the argv/`stdin` template, runs the process, and streams **stdout** as the completion.
+
+> **Note:** Concrete providers are temporarily removed. Only the trait surface remains under `core/src/providers/`. The HTTP server still starts; completion endpoints return “no providers registered”.
 
 ## Workspace
 
 | Crate | Package | Description |
 |-------|---------|-------------|
-| `core` | `teaport-core` | Axum server, agent runner, API types |
-| `cli` | `teaport` | Command-line entrypoint |
-| `app-ui` | `teaport-ui` | Leptos CSR UI (Bun + Tailwind) |
-| `app-tauri` | `teaport-tauri` | Tauri 2 desktop app |
+| `core` | `teapot-core` | Axum server, provider traits, API types |
+| `cli` | `teapot-cli` | Command-line entrypoint (`teapotx`) |
+| `app-ui` | `teapot-ui` | Leptos CSR liquid-glass desktop UI (Bun + Trunk) |
+| `app-tauri` | `teapot-tauri` | Tauri 2 shell; bundles `teapotx` sidecar |
 
 Stack: **Tokio**, **Axum**, **Reqwest** (rustls), **Tracing**, **Tauri**, **Leptos**.
 
 ## Quick start
 
 ```bash
-# Start the API server (default http://127.0.0.1:8080)
-cargo run -p teaport -- serve
-
-# Pin to one agent CLI (models list + default routing use only this agent)
-cargo run -p teaport -- serve -a codex
-cargo run -p teaport -- serve --agent claude
+# Start the API server (provider backends currently stubbed)
+cargo run -p teapot-cli -- serve
 
 # Optional: custom config / listen address
-cargo run -p teaport -- serve -c teaport.toml -l 127.0.0.1:8080 -a grok
+cargo run -p teapot-cli -- serve -c teapot.toml -l 127.0.0.1:8080
 
-# List models for one agent
-cargo run -p teaport -- models -a codex
+# List providers (empty while backends are stubbed)
+cargo run -p teapot-cli -- providers
 ```
 
 ### ChatGPT-compatible API
@@ -35,21 +35,16 @@ cargo run -p teaport -- models -a codex
 Prefix: **`/chatgpt/v1`**
 
 ```bash
-# Chat Completions (streaming)
+# Models (empty list while no providers)
+curl http://127.0.0.1:8080/chatgpt/v1/models
+
+# Chat Completions — prefer stream:true when providers return
 curl -N http://127.0.0.1:8080/chatgpt/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "codex",
+    "model": "example",
     "stream": true,
     "messages": [{"role":"user","content":"Say hello in one sentence."}]
-  }'
-
-# Responses API
-curl http://127.0.0.1:8080/chatgpt/v1/responses \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "claude",
-    "input": "List three Rust tips."
   }'
 ```
 
@@ -62,80 +57,61 @@ curl -N http://127.0.0.1:8080/claude/v1/messages \
   -H 'Content-Type: application/json' \
   -H 'anthropic-version: 2023-06-01' \
   -d '{
-    "model": "claude",
+    "model": "example",
     "max_tokens": 1024,
     "stream": true,
     "messages": [{"role":"user","content":"Hello"}]
   }'
 ```
 
-### Models API (installed agent CLIs only)
+### Models API (on each compatible surface)
 
-```bash
-# OpenAI-compatible
-curl http://127.0.0.1:8080/chatgpt/v1/models
-curl http://127.0.0.1:8080/chatgpt/v1/models/codex
-
-# Anthropic-compatible
-curl http://127.0.0.1:8080/claude/v1/models
-curl http://127.0.0.1:8080/claude/v1/models/claude
-
-# CLI helper
-cargo run -p teaport -- models
-```
-
-Listing includes:
-
-1. Agent names whose binary is on `PATH`
-2. `model_map` aliases that resolve to installed agents
-3. Built-in catalogs for known families (codex / claude / grok) when installed
-4. Optional CLI probe via `list_models_args` in config (e.g. `codex models`)
-
-### Model → agent routing
-
-- Use an agent name as `model` (`codex`, `claude`, `grok`, `antigravity`).
-- Or map aliases in `teaport.toml` (`[model_map]`).
-- Optional extension field `"agent": "codex"` overrides the model map.
+- OpenAI-compatible: `GET /chatgpt/v1/models`
+- Anthropic-compatible: `GET /claude/v1/models`
 
 ## Configuration
 
-See `teaport.toml`. Print defaults:
+See `teapot.toml`. Print defaults:
 
 ```bash
-cargo run -p teaport -- default-config
+cargo run -p teapot-cli -- default-config
 ```
 
 | Key | Meaning |
 |-----|---------|
 | `listen` | Bind address |
 | `api_key` | Optional; enables Bearer / `x-api-key` auth |
-| `default_agent` | Fallback agent |
-| `agents.*` | Command, args (`{prompt}`, `{system}`), timeout |
-| `model_map` | Request model id → agent name |
+| `provider` | Optional free-form provider key (no built-ins right now) |
+| `include_progress` | Stream optional `status` / `reasoning_content` (default true) |
 
 ## Desktop UI
 
-`app-ui` is a small Leptos CSR app (Bun + Tailwind + Trunk) with two pages:
+`app-ui` is a Leptos CSR liquid-glass app (**Bun** + Tailwind v4 + Trunk; primary `#1179ac`):
 
-1. **Server** — start / stop the local API (via Tauri commands) and health-check
-2. **Playground** — send ChatGPT or Claude compatible requests to the running server
+1. **Home** — switch to start/stop bundled `teapotx serve`
+2. **Settings** — generate config (`listen`, optional empty `api_key`)
+3. **Debug** — teapotx logs + export
+4. **About** — app icon and version
+
+macOS uses an overlay transparent titlebar so the glass background fills the window.
 
 ```bash
-# Install JS tooling
+# Install JS tooling (Bun only — no pnpm)
 cd app-ui && bun install
 
-# Browser-only UI (start/stop disabled; use CLI `serve` instead)
+# Browser-only UI
 bun run dev
 
-# Full desktop app with start/stop
-cd ../app-tauri && cargo tauri dev
+# Desktop (builds/copies teapotx sidecar if missing)
+bash scripts/prepare-sidecar.sh   # once, or let beforeDevCommand ensure it
+cd app-tauri && cargo tauri dev
 ```
 
 ## Development
 
 ```bash
-cargo check -p teaport-core -p teaport
-cargo run -p teaport -- agents
+cargo check -p teapot-core -p teapot-cli
+cargo run -p teapot-cli -- providers
 ```
 
 ## License

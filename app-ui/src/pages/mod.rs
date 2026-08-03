@@ -1,7 +1,9 @@
-//! UI pages: server control + playground.
+//! UI pages: home (serve switch) + macOS-style settings hub.
 
-mod playground;
-mod server;
+mod home;
+mod settings;
 
-pub use playground::PlaygroundPage;
-pub use server::ServerPage;
+pub use home::HomePage;
+pub use settings::{
+  SettingsAboutPage, SettingsDebugPage, SettingsGeneratePage, SettingsPage,
+};
