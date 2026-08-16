@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# Create a published GitHub Release. The Release workflow then builds and
+# uploads Windows/macOS Tauri apps and linux/windows/macos teapotx binaries.
+#
+# Usage:
+#   .scripts/create-release <version>
+#   .scripts/create-release --dry-run 0.2.0
+#
+# Version may be `0.2.0` or `v0.2.0`. Must run on a clean `master` with `gh`.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+usage() {
+  cat <<'EOF'
+Create a published GitHub Release for Teapot.
+
+Usage:
+  .scripts/create-release [--dry-run] <version>
+
+Examples:
+  .scripts/create-release 0.2.0
+  .scripts/create-release --dry-run v0.2.0
+
+This script bumps workspace + Tauri + UI versions, commits, pushes, and
+runs `gh release create`. GitHub Actions (release.yml) attaches artifacts
+only after that release exists.
+EOF
+}
+
+DRY_RUN=0
+VERSION=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    -*)
+      echo "error: unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [[ -n "${VERSION}" ]]; then
+        echo "error: unexpected argument: $1" >&2
+        usage >&2
+        exit 1
+      fi
+      VERSION="$1"
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "${VERSION}" ]]; then
+  echo "error: version is required" >&2
+  usage >&2
+  exit 1
+fi
+
+VERSION="${VERSION#v}"
+if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+  echo "error: version must look like 1.2.3 or 1.2.3-rc.1 (got ${VERSION})" >&2
+  exit 1
+fi
+TAG="v${VERSION}"
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "error: missing required command: $1" >&2
+    exit 1
+  }
+}
+
+need_cmd git
+need_cmd python3
+if [[ "${DRY_RUN}" -eq 0 ]]; then
+  need_cmd gh
+fi
+
+BRANCH="$(git branch --show-current)"
+if [[ "${BRANCH}" != "master" ]]; then
+  echo "error: create-release must run on master (currently on ${BRANCH})" >&2
+  exit 1
+fi
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "error: working tree is not clean; commit or stash first" >&2
+  git status --short >&2
+  exit 1
+fi
+
+CURRENT="$(python3 - <<'PY'
+from pathlib import Path
+import re
+text = Path("Cargo.toml").read_text()
+m = re.search(r'(?ms)^\[workspace\.package\].*?^version = "([^"]+)"', text)
+if not m:
+    raise SystemExit("could not read [workspace.package] version from Cargo.toml")
+print(m.group(1))
+PY
+)"
+
+echo "Current version: ${CURRENT}"
+echo "Release version: ${VERSION} (${TAG})"
+
+if git rev-parse "${TAG}" >/dev/null 2>&1; then
+  echo "error: local tag ${TAG} already exists" >&2
+  exit 1
+fi
+
+if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+  echo "error: origin already has tag ${TAG}" >&2
+  exit 1
+fi
+
+if [[ "${DRY_RUN}" -eq 0 ]]; then
+  gh auth status >/dev/null
+fi
+
+python3 - "${VERSION}" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+version = sys.argv[1]
+root = Path(".")
+
+cargo = root / "Cargo.toml"
+text = cargo.read_text()
+new, n = re.subn(
+    r'(?ms)(^\[workspace\.package\].*?^version = ")[^"]+(")',
+    rf"\g<1>{version}\2",
+    text,
+    count=1,
+)
+if n != 1:
+    raise SystemExit("failed to update [workspace.package] version in Cargo.toml")
+cargo.write_text(new)
+
+for rel, count in (("app-tauri/tauri.conf.json", 1), ("app-ui/package.json", 1)):
+    path = root / rel
+    body = path.read_text()
+    updated, n = re.subn(
+        r'("version":\s*")[^"]+(")',
+        rf"\g<1>{version}\2",
+        body,
+        count=count,
+    )
+    if n != 1:
+        raise SystemExit(f"failed to update version in {rel}")
+    path.write_text(updated)
+PY
+
+echo "Updated Cargo.toml, app-tauri/tauri.conf.json, app-ui/package.json"
+
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "dry-run: would commit, push, and create ${TAG}"
+  git diff --stat
+  git checkout -- Cargo.toml app-tauri/tauri.conf.json app-ui/package.json
+  echo "dry-run: reverted local version edits"
+  exit 0
+fi
+
+git add Cargo.toml app-tauri/tauri.conf.json app-ui/package.json
+if git diff --cached --quiet; then
+  echo "Version files already at ${VERSION}; creating the GitHub release only"
+else
+  git commit -m "Release ${TAG}"
+fi
+
+git push origin HEAD
+HEAD_SHA="$(git rev-parse HEAD)"
+gh release create "${TAG}" \
+  --target "${HEAD_SHA}" \
+  --title "Teapot ${TAG}" \
+  --generate-notes
+
+REPO="$(gh repo view --json url --jq .url)"
+echo
+echo "Created ${TAG}. The Release workflow will attach:"
+echo "  - Tauri app: Windows, macOS"
+echo "  - teapotx:   Linux, Windows, macOS"
+echo
+echo "Release:  ${REPO}/releases/tag/${TAG}"
+echo "Actions:  ${REPO}/actions"

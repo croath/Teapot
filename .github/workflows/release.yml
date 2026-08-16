@@ -1,0 +1,169 @@
+# Builds artifacts only after a GitHub Release exists.
+# Create one with `.scripts/create-release <version>` (triggers `release: published`).
+#
+# Optional repository secrets:
+#   ANTIGRAVITY_CLIENT_ID / ANTIGRAVITY_CLIENT_SECRET
+#   APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY
+#   APPLE_API_ISSUER / APPLE_API_KEY / APPLE_API_KEY_CONTENT
+#   WINDOWS_CERTIFICATE / WINDOWS_CERTIFICATE_PASSWORD
+name: Release
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  ANTIGRAVITY_CLIENT_ID: ${{ secrets.ANTIGRAVITY_CLIENT_ID }}
+  ANTIGRAVITY_CLIENT_SECRET: ${{ secrets.ANTIGRAVITY_CLIENT_SECRET }}
+
+jobs:
+  teapotx:
+    name: teapotx (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bin: teapotx
+            asset: teapotx-x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: teapotx.exe
+            asset: teapotx-x86_64-pc-windows-msvc.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bin: teapotx
+            asset: teapotx-aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bin: teapotx
+            asset: teapotx-x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: teapotx-${{ matrix.target }}
+
+      - name: Antigravity build credentials
+        shell: bash
+        run: |
+          if [ -z "${ANTIGRAVITY_CLIENT_ID:-}" ]; then
+            echo "ANTIGRAVITY_CLIENT_ID=ci-placeholder-client-id" >> "$GITHUB_ENV"
+          fi
+          if [ -z "${ANTIGRAVITY_CLIENT_SECRET:-}" ]; then
+            echo "ANTIGRAVITY_CLIENT_SECRET=ci-placeholder-client-secret" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build teapotx
+        run: cargo build -p teapot-cli --release --target ${{ matrix.target }}
+
+      - name: Upload teapotx to the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          src="target/${{ matrix.target }}/release/${{ matrix.bin }}"
+          dest="${{ matrix.asset }}"
+          cp "$src" "$dest"
+          gh release upload "${{ github.event.release.tag_name }}" "$dest" --clobber
+
+  tauri:
+    name: tauri (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          targets: wasm32-unknown-unknown,${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: tauri-${{ matrix.target }}
+          workspaces: ". -> target"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Trunk and Tauri CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk,tauri-cli@2
+
+      - name: Install frontend JS deps
+        working-directory: app-ui
+        run: bun install --frozen-lockfile
+
+      - name: Antigravity build credentials
+        shell: bash
+        run: |
+          if [ -z "${ANTIGRAVITY_CLIENT_ID:-}" ]; then
+            echo "ANTIGRAVITY_CLIENT_ID=ci-placeholder-client-id" >> "$GITHUB_ENV"
+          fi
+          if [ -z "${ANTIGRAVITY_CLIENT_SECRET:-}" ]; then
+            echo "ANTIGRAVITY_CLIENT_SECRET=ci-placeholder-client-secret" >> "$GITHUB_ENV"
+          fi
+
+      - name: Write Apple notarization API key
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+        run: |
+          if [ -n "${APPLE_API_KEY_CONTENT:-}" ]; then
+            key="${RUNNER_TEMP}/AuthKey.p8"
+            printf '%s\n' "$APPLE_API_KEY_CONTENT" > "$key"
+            echo "APPLE_API_KEY_PATH=$key" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build Tauri app and attach to the existing release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        with:
+          projectPath: app-tauri
+          # Use cargo tauri (Trunk runs from tauri.conf beforeBuildCommand). No npm.
+          tauriScript: cargo
+          releaseId: ${{ github.event.release.id }}
+          tagName: ${{ github.event.release.tag_name }}
+          uploadUpdaterJson: false
+          args: --target ${{ matrix.target }}

@@ -1,0 +1,27 @@
+# Private signing material (also listed in repo-root .gitignore).
+# Safe to commit: *.crt, *.thumbprint, *.pub, generate/export helpers, README.
+
+*.key
+*.pfx
+*.password
+*.pfx.base64
+*.p12
+*.p12.base64
+*.p8
+*.p12.password
+
+windows-codesign.key
+windows-codesign.pfx
+windows-codesign.password
+windows-codesign.pfx.base64
+
+apple-codesign.p12.base64
+apple-codesign.password
+apple-signing-identity
+apple-api-issuer
+apple-api-key
+apple-api-key.p8
+AuthKey_*.p8
+
+# Combined dotenv (export-all-signing.sh)
+.env
