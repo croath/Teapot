@@ -1,0 +1,49 @@
+name: PR Check
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: pr-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # Compile-time bake only; PR CI does not call Google OAuth.
+  ANTIGRAVITY_CLIENT_ID: ci-placeholder-client-id
+  ANTIGRAVITY_CLIENT_SECRET: ci-placeholder-client-secret
+
+jobs:
+  check:
+    name: fmt, clippy, test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: clippy
+        run: cargo clippy -p teapot-core -p teapot-cli --all-targets
+
+      - name: test
+        run: cargo test -p teapot-core -p teapot-cli -p teapot-ui
+
+      - name: check UI (wasm)
+        run: cargo check -p teapot-ui --target wasm32-unknown-unknown
