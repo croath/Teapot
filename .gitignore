@@ -15,3 +15,4 @@ app-tauri/binaries/teapotx-*
 .vscode/
 .cargo-cache/
 .grok/
+.scripts/
