@@ -1,6 +1,8 @@
 # Builds artifacts only after a GitHub Release exists.
 # Create one with `.scripts/create-release <version>` (triggers `release: published`).
 #
+# Required for Tauri updater artifacts (from .tauri/tauri-updator.key):
+#   TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 # Optional repository secrets:
 #   ANTIGRAVITY_CLIENT_ID / ANTIGRAVITY_CLIENT_SECRET
 #   APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY
@@ -152,6 +154,8 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -165,5 +169,6 @@ jobs:
           tauriScript: cargo
           releaseId: ${{ github.event.release.id }}
           tagName: ${{ github.event.release.tag_name }}
-          uploadUpdaterJson: false
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
           args: --target ${{ matrix.target }}

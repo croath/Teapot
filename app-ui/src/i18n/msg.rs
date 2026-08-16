@@ -48,6 +48,14 @@ pub enum Msg {
   NothingToExport,
   Version,
   AboutBlurb,
+  CheckForUpdates,
+  CheckingForUpdates,
+  UpToDate,
+  UpdateAvailable,
+  InstallAndRestart,
+  DownloadingUpdate,
+  InstallingUpdate,
+  UpdateDesktopOnly,
 }
 
 impl Locale {
@@ -110,6 +118,14 @@ impl Msg {
       Msg::AboutBlurb => {
         "Turn local provider CLIs into OpenAI- and Anthropic-compatible HTTP APIs."
       }
+      Msg::CheckForUpdates => "Check for Updates",
+      Msg::CheckingForUpdates => "Checking for updates…",
+      Msg::UpToDate => "You're up to date.",
+      Msg::UpdateAvailable => "A newer version is available.",
+      Msg::InstallAndRestart => "Install and Restart",
+      Msg::DownloadingUpdate => "Downloading update…",
+      Msg::InstallingUpdate => "Installing update…",
+      Msg::UpdateDesktopOnly => "Updates are available in the Teapot desktop app.",
     }
   }
 
@@ -164,6 +180,14 @@ impl Msg {
       Msg::AboutBlurb => {
         "ローカルのプロバイダー CLI を OpenAI / Anthropic 互換の HTTP API に変換します。"
       }
+      Msg::CheckForUpdates => "アップデートを確認",
+      Msg::CheckingForUpdates => "アップデートを確認しています…",
+      Msg::UpToDate => "最新の状態です。",
+      Msg::UpdateAvailable => "新しいバージョンがあります。",
+      Msg::InstallAndRestart => "インストールして再起動",
+      Msg::DownloadingUpdate => "アップデートをダウンロードしています…",
+      Msg::InstallingUpdate => "アップデートをインストールしています…",
+      Msg::UpdateDesktopOnly => "アップデートは Teapot デスクトップアプリで利用できます。",
     }
   }
 
@@ -212,6 +236,14 @@ impl Msg {
       Msg::NothingToExport => "没有可导出的内容。",
       Msg::Version => "版本",
       Msg::AboutBlurb => "将本地提供商 CLI 转换为兼容 OpenAI 与 Anthropic 的 HTTP API。",
+      Msg::CheckForUpdates => "检查更新",
+      Msg::CheckingForUpdates => "正在检查更新…",
+      Msg::UpToDate => "已是最新版本。",
+      Msg::UpdateAvailable => "有新版本可用。",
+      Msg::InstallAndRestart => "安装并重启",
+      Msg::DownloadingUpdate => "正在下载更新…",
+      Msg::InstallingUpdate => "正在安装更新…",
+      Msg::UpdateDesktopOnly => "请在 Teapot 桌面应用中检查更新。",
     }
   }
 
@@ -260,6 +292,14 @@ impl Msg {
       Msg::NothingToExport => "沒有可匯出的內容。",
       Msg::Version => "版本",
       Msg::AboutBlurb => "將本機供應商 CLI 轉換為相容 OpenAI 與 Anthropic 的 HTTP API。",
+      Msg::CheckForUpdates => "檢查更新",
+      Msg::CheckingForUpdates => "正在檢查更新…",
+      Msg::UpToDate => "已是最新版本。",
+      Msg::UpdateAvailable => "有新版本可用。",
+      Msg::InstallAndRestart => "安裝並重新啟動",
+      Msg::DownloadingUpdate => "正在下載更新…",
+      Msg::InstallingUpdate => "正在安裝更新…",
+      Msg::UpdateDesktopOnly => "請在 Teapot 桌面應用程式中檢查更新。",
     }
   }
 
@@ -308,6 +348,14 @@ impl Msg {
       Msg::NothingToExport => "내보낼 내용이 없습니다.",
       Msg::Version => "버전",
       Msg::AboutBlurb => "로컬 제공자 CLI를 OpenAI 및 Anthropic 호환 HTTP API로 바꿉니다.",
+      Msg::CheckForUpdates => "업데이트 확인",
+      Msg::CheckingForUpdates => "업데이트를 확인하는 중…",
+      Msg::UpToDate => "최신 상태입니다.",
+      Msg::UpdateAvailable => "새 버전이 있습니다.",
+      Msg::InstallAndRestart => "설치하고 다시 시작",
+      Msg::DownloadingUpdate => "업데이트를 다운로드하는 중…",
+      Msg::InstallingUpdate => "업데이트를 설치하는 중…",
+      Msg::UpdateDesktopOnly => "업데이트는 Teapot 데스크톱 앱에서 확인할 수 있습니다.",
     }
   }
 }
@@ -361,6 +409,14 @@ mod tests {
     Msg::NothingToExport,
     Msg::Version,
     Msg::AboutBlurb,
+    Msg::CheckForUpdates,
+    Msg::CheckingForUpdates,
+    Msg::UpToDate,
+    Msg::UpdateAvailable,
+    Msg::InstallAndRestart,
+    Msg::DownloadingUpdate,
+    Msg::InstallingUpdate,
+    Msg::UpdateDesktopOnly,
   ];
 
   #[test]

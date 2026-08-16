@@ -8,9 +8,11 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::{Button, ButtonVariant, Input, InputType, Label};
+use crate::components::{Button, ButtonVariant, Input, InputType, Label, Progress};
 use crate::i18n::{Locale, Msg, use_i18n};
-use crate::tauri_bridge::{self, AppConfigDto, AppInfo, SaveConfigArgs};
+use crate::tauri_bridge::{
+  self, AppConfigDto, AppInfo, DownloadProgress, SaveConfigArgs, UpdateCheck,
+};
 
 // ─── Hub ───────────────────────────────────────────────────────────────────
 
@@ -345,6 +347,12 @@ pub fn SettingsAboutPage() -> impl IntoView {
   let version = RwSignal::new(env!("CARGO_PKG_VERSION").to_string());
   let name = RwSignal::new("Teapot".to_string());
   let in_tauri = tauri_bridge::is_tauri();
+  let checking = RwSignal::new(false);
+  let installing = RwSignal::new(false);
+  let update = RwSignal::new(Option::<UpdateCheck>::None);
+  let error = RwSignal::new(Option::<String>::None);
+  let downloaded = RwSignal::new(0u64);
+  let content_length = RwSignal::new(Option::<u64>::None);
 
   Effect::new(move |_| {
     if !in_tauri {
@@ -357,6 +365,67 @@ pub fn SettingsAboutPage() -> impl IntoView {
       }
     });
   });
+
+  let run_check = move || {
+    if !in_tauri || checking.get_untracked() || installing.get_untracked() {
+      return;
+    }
+    checking.set(true);
+    error.set(None);
+    spawn_local(async move {
+      match tauri_bridge::invoke0::<UpdateCheck>("check_for_update").await {
+        Ok(result) => {
+          version.set(result.current_version.clone());
+          update.set(Some(result));
+        }
+        Err(e) => {
+          update.set(None);
+          error.set(Some(e));
+        }
+      }
+      checking.set(false);
+    });
+  };
+
+  Effect::new(move |_| {
+    if !in_tauri {
+      return;
+    }
+    run_check();
+    tauri_bridge::listen("updater-check", move || run_check());
+    tauri_bridge::listen_json::<DownloadProgress>("updater-progress", move |progress| {
+      downloaded.set(progress.downloaded);
+      content_length.set(progress.content_length);
+    });
+    tauri_bridge::listen("updater-finished", move || {
+      installing.set(true);
+    });
+  });
+
+  let on_check = move |_| run_check();
+
+  let on_install = move |_| {
+    if !in_tauri || installing.get_untracked() {
+      return;
+    }
+    installing.set(true);
+    error.set(None);
+    downloaded.set(0);
+    content_length.set(None);
+    spawn_local(async move {
+      if let Err(e) = tauri_bridge::invoke0::<()>("install_update").await {
+        error.set(Some(e));
+        installing.set(false);
+      }
+    });
+  };
+
+  let progress_pct = Signal::derive(move || match content_length.get() {
+    Some(total) if total > 0 => (downloaded.get() as f64 / total as f64) * 100.0,
+    _ => 0.0,
+  });
+
+  let available = Signal::derive(move || update.get().map(|u| u.available).unwrap_or(false));
 
   view! {
     <SettingsDetail title=i18n.t(Msg::About)>
@@ -376,6 +445,96 @@ pub fn SettingsAboutPage() -> impl IntoView {
             " "
             <span class="font-mono">{move || version.get()}</span>
           </p>
+        </div>
+
+        <div class="settings-group settings-updater">
+          <Show when=move || !in_tauri>
+            <p class="settings-updater-status">{i18n.t(Msg::UpdateDesktopOnly)}</p>
+          </Show>
+          <Show when=move || in_tauri>
+            <p class="settings-updater-status">
+              {move || {
+                let locale = i18n.locale().get();
+                if installing.get() {
+                  if downloaded.get() > 0 || content_length.get().is_some() {
+                    locale.t(Msg::DownloadingUpdate)
+                  } else {
+                    locale.t(Msg::InstallingUpdate)
+                  }
+                } else if checking.get() {
+                  locale.t(Msg::CheckingForUpdates)
+                } else if let Some(info) = update.get() {
+                  if info.available {
+                    locale.t(Msg::UpdateAvailable)
+                  } else {
+                    locale.t(Msg::UpToDate)
+                  }
+                } else {
+                  ""
+                }
+              }}
+            </p>
+            <Show when=move || {
+              update.get().and_then(|u| u.version.filter(|_| u.available)).is_some()
+            }>
+              <p class="settings-updater-version font-mono">
+                {move || {
+                  update
+                    .get()
+                    .and_then(|u| u.version)
+                    .unwrap_or_default()
+                }}
+              </p>
+            </Show>
+            <Show when=move || {
+              update
+                .get()
+                .and_then(|u| u.notes.filter(|n| !n.trim().is_empty()))
+                .is_some()
+            }>
+              <p class="settings-updater-notes">
+                {move || {
+                  update
+                    .get()
+                    .and_then(|u| u.notes)
+                    .unwrap_or_default()
+                }}
+              </p>
+            </Show>
+            <Show when=move || installing.get() && content_length.get().is_some()>
+              <Progress class="settings-updater-progress".to_string() value=progress_pct />
+            </Show>
+            <div class="settings-updater-actions">
+              <Show when=move || available.get() && !installing.get()>
+                <Button
+                  variant=ButtonVariant::Default
+                  on:click=on_install
+                  class="settings-primary-btn"
+                >
+                  {i18n.t(Msg::InstallAndRestart)}
+                </Button>
+              </Show>
+              <Show when=move || !available.get() || !installing.get()>
+                <Button
+                  variant=ButtonVariant::Outline
+                  on:click=on_check
+                  prop:disabled=move || checking.get() || installing.get()
+                  class="settings-chip-btn"
+                >
+                  {move || {
+                    if checking.get() {
+                      i18n.locale().get().t(Msg::CheckingForUpdates)
+                    } else {
+                      i18n.locale().get().t(Msg::CheckForUpdates)
+                    }
+                  }}
+                </Button>
+              </Show>
+            </div>
+          </Show>
+          <Show when=move || error.get().is_some()>
+            <p class="home-error">{move || error.get().unwrap_or_default()}</p>
+          </Show>
         </div>
 
         <div class="settings-group settings-about-blurb">

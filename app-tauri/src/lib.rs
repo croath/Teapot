@@ -2,6 +2,7 @@
 
 mod i18n;
 mod server;
+mod updater;
 
 use i18n::{Locale, load_locale, save_locale};
 use server::ServerRuntime;
@@ -16,23 +17,31 @@ pub fn run() {
 
   tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
+    .plugin(tauri_plugin_updater::Builder::new().build())
     .manage(ServerRuntime::new())
+    .manage(updater::PendingUpdate::new())
     .setup(|app| {
       let locale = load_locale(app.handle());
       let menu = build_app_menu(app.handle(), locale)?;
       app.set_menu(menu)?;
       Ok(())
     })
-    .on_menu_event(|app, event| {
-      let path = match event.id().0.as_str() {
-        "settings" => Some("/settings"),
-        "about" => Some("/settings/about"),
-        "debug" => Some("/settings/debug"),
-        "home" => Some("/"),
-        _ => None,
-      };
-      if let Some(path) = path {
-        let _ = app.emit("navigate", path);
+    .on_menu_event(|app, event| match event.id().0.as_str() {
+      "check-updates" => {
+        let _ = app.emit("navigate", "/settings/about");
+        let _ = app.emit("updater-check", ());
+      }
+      id => {
+        let path = match id {
+          "settings" => Some("/settings"),
+          "about" => Some("/settings/about"),
+          "debug" => Some("/settings/debug"),
+          "home" => Some("/"),
+          _ => None,
+        };
+        if let Some(path) = path {
+          let _ = app.emit("navigate", path);
+        }
       }
     })
     .invoke_handler(tauri::generate_handler![
@@ -44,6 +53,8 @@ pub fn run() {
       server::get_logs,
       server::clear_logs,
       server::get_app_info,
+      updater::check_for_update,
+      updater::install_update,
       set_locale,
       get_locale,
     ])
@@ -75,10 +86,13 @@ fn build_app_menu(
   let settings_item = MenuItem::with_id(app, "settings", copy.settings, true, Some("CmdOrCtrl+,"))?;
   let about_item = MenuItem::with_id(app, "about", copy.about, true, None::<&str>)?;
   let debug_item = MenuItem::with_id(app, "debug", copy.debug, true, None::<&str>)?;
+  let check_updates_item =
+    MenuItem::with_id(app, "check-updates", copy.check_updates, true, None::<&str>)?;
 
   #[cfg(target_os = "macos")]
   let app_submenu = SubmenuBuilder::new(app, &pkg_name)
     .item(&about_item)
+    .item(&check_updates_item)
     .separator()
     .item(&settings_item)
     .separator()
@@ -125,6 +139,7 @@ fn build_app_menu(
     {
       SubmenuBuilder::new(app, copy.help)
         .item(&about_item)
+        .item(&check_updates_item)
         .separator()
         .item(&debug_item)
         .build()?

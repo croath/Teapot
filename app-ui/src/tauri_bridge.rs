@@ -82,6 +82,70 @@ fn js_error_to_string(err: JsValue) -> String {
   format!("{err:?}")
 }
 
+/// Listen for a Tauri event and ignore the payload.
+/// The handler is kept for the lifetime of the page (`forget`).
+pub fn listen(event: &str, handler: impl Fn() + 'static) {
+  if !is_tauri() {
+    return;
+  }
+  let event = event.to_string();
+  spawn_local(async move {
+    let Ok(listen) = event_listen_fn() else {
+      return;
+    };
+    let cb = Closure::wrap(Box::new(move |_ev: JsValue| {
+      handler();
+    }) as Box<dyn FnMut(JsValue)>);
+    let this = JsValue::NULL;
+    let result = listen.call2(
+      &this,
+      &JsValue::from_str(&event),
+      cb.as_ref().unchecked_ref(),
+    );
+    cb.forget();
+    if let Ok(promise) = result {
+      let _ = JsFuture::from(Promise::from(promise)).await;
+    }
+  });
+}
+
+/// Listen for a Tauri event whose payload is JSON-compatible.
+pub fn listen_json<T>(event: &str, handler: impl Fn(T) + 'static)
+where
+  T: DeserializeOwned + 'static,
+{
+  if !is_tauri() {
+    return;
+  }
+  let event = event.to_string();
+  spawn_local(async move {
+    let Ok(listen) = event_listen_fn() else {
+      return;
+    };
+    let cb = Closure::wrap(Box::new(move |ev: JsValue| {
+      if let Ok(payload) = Reflect::get(&ev, &JsValue::from_str("payload")) {
+        if let Ok(json) = js_sys::JSON::stringify(&payload) {
+          if let Some(text) = json.as_string() {
+            if let Ok(value) = serde_json::from_str::<T>(&text) {
+              handler(value);
+            }
+          }
+        }
+      }
+    }) as Box<dyn FnMut(JsValue)>);
+    let this = JsValue::NULL;
+    let result = listen.call2(
+      &this,
+      &JsValue::from_str(&event),
+      cb.as_ref().unchecked_ref(),
+    );
+    cb.forget();
+    if let Ok(promise) = result {
+      let _ = JsFuture::from(Promise::from(promise)).await;
+    }
+  });
+}
+
 /// Listen for a Tauri event whose payload is a string (e.g. `"navigate"`).
 /// The handler is kept for the lifetime of the page (`forget`).
 pub fn listen_string(event: &str, handler: impl Fn(String) + 'static) {
@@ -188,4 +252,20 @@ pub struct SaveConfigArgs {
 #[derive(Debug, Serialize)]
 pub struct SetLocaleArgs {
   pub locale: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheck {
+  pub available: bool,
+  pub current_version: String,
+  pub version: Option<String>,
+  pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadProgress {
+  pub downloaded: u64,
+  pub content_length: Option<u64>,
 }

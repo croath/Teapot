@@ -8,7 +8,7 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 authors = ["Teapot contributors"]
-repository = "https://github.com/example/teapot"
+repository = "https://github.com/croath/Teapot"
 rust-version = "1.88"
 
 [workspace.dependencies]
@@ -65,6 +65,7 @@ jsonwebtoken = "9.3.1"
 tauri = "2.11.5"
 tauri-build = "2.6.3"
 tauri-plugin-shell = "2.3.5"
+tauri-plugin-updater = "2.10.1"
 
 # Leptos (UI)
 leptos = "0.8.20"
