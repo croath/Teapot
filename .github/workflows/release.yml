@@ -35,14 +35,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
             bin: teapotx
-            asset: teapotx-x86_64-unknown-linux-gnu
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
+            asset: teapotx-aarch64-unknown-linux-gnu
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
             bin: teapotx.exe
-            asset: teapotx-x86_64-pc-windows-msvc.exe
+            asset: teapotx-aarch64-pc-windows-msvc.exe
           - os: macos-latest
             target: aarch64-apple-darwin
             bin: teapotx
@@ -97,8 +97,10 @@ jobs:
         include:
           - os: macos-latest
             target: aarch64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
+            bundles: dmg,app
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            bundles: nsis
     steps:
       - uses: actions/checkout@v4
 
@@ -150,6 +152,12 @@ jobs:
             echo "APPLE_API_KEY_PATH=$key" >> "$GITHUB_ENV"
           fi
 
+      # Sidecars are gitignored; tauri-build fails if teapotx-<triple> is missing.
+      # beforeBuildCommand also prepares this, but do it here so the target is explicit
+      # and the binary exists even if something compiles teapot-tauri first.
+      - name: Prepare teapotx sidecar
+        run: bash scripts/prepare-sidecar.sh release ${{ matrix.target }}
+
       - name: Build Tauri app and attach to the existing release
         uses: tauri-apps/tauri-action@v1
         env:
@@ -165,10 +173,10 @@ jobs:
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         with:
           projectPath: app-tauri
-          # Use cargo tauri (Trunk runs from tauri.conf beforeBuildCommand). No npm.
-          tauriScript: cargo
+          # Action runs `${tauriScript} build …`. `cargo` alone is a debug cargo build.
+          tauriScript: cargo tauri
           releaseId: ${{ github.event.release.id }}
           tagName: ${{ github.event.release.tag_name }}
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
