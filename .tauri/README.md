@@ -44,7 +44,7 @@ source .tauri/export-windows-signing.sh
 ```
 
 Tauri reads those variables when bundling Windows installers.  
-`tauri-app/tauri.conf.json` sets `digestAlgorithm` + `timestampUrl` under `bundle.windows`.
+`app-tauri/tauri.conf.json` sets `digestAlgorithm` + `timestampUrl` under `bundle.windows`.
 
 ### Windows host: install cert for thumbprint signing
 
@@ -131,7 +131,7 @@ CI note: the workflow writes `APPLE_API_KEY_CONTENT` → a temp `.p8` and sets
 `APPLE_API_KEY_PATH` on the runner. Local builds use `APPLE_API_KEY_PATH` pointing
 at `.tauri/apple-api-key.p8`.
 
-Hardened runtime + entitlements live in `tauri-app/tauri.conf.json` → `bundle.macOS`
+Hardened runtime + entitlements live in `app-tauri/tauri.conf.json` → `bundle.macOS`
 (`hardenedRuntime`, `entitlements`, `minimumSystemVersion`).
 
 ---

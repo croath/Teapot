@@ -20,6 +20,10 @@ This repository is **Teapot**: turn local provider CLIs into OpenAI- and Anthrop
 - Dev UI: `cd app-ui && bun install && trunk serve`
 - Desktop: `bash scripts/prepare-sidecar.sh` once, then `cargo tauri dev`
 - Sidecar: `app-tauri/binaries/teapotx-<target-triple>` via `bundle.externalBin`
+- Updater: `tauri-plugin-updater` + GitHub `latest.json`. Public key is
+  `plugins.updater.pubkey` (from `.tauri/tauri-updator.key.pub`). Release
+  builds need `source .tauri/export-tauri-updater.sh` (or the matching
+  GitHub secrets) because `bundle.createUpdaterArtifacts` is true.
 
 ## Workspace dependency rules
 

@@ -507,6 +507,30 @@
     @apply px-4 py-3.5 text-center text-sm leading-relaxed text-muted-foreground;
   }
 
+  .settings-updater {
+    @apply flex flex-col items-center gap-2 px-4 py-3.5 text-center;
+  }
+
+  .settings-updater-status {
+    @apply text-sm text-muted-foreground;
+  }
+
+  .settings-updater-version {
+    @apply text-sm font-medium text-foreground;
+  }
+
+  .settings-updater-notes {
+    @apply max-h-28 w-full overflow-y-auto text-left text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap;
+  }
+
+  .settings-updater-progress {
+    @apply mt-1 w-full;
+  }
+
+  .settings-updater-actions {
+    @apply mt-1 flex flex-wrap items-center justify-center gap-2;
+  }
+
   .page-center {
     @apply flex flex-1 flex-col items-center justify-center;
   }
