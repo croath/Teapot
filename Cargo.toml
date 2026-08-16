@@ -66,6 +66,7 @@ tauri = "2.11.5"
 tauri-build = "2.6.3"
 tauri-plugin-shell = "2.3.5"
 tauri-plugin-updater = "2.10.1"
+tauri-plugin-prevent-default = "5"
 
 # Leptos (UI)
 leptos = "0.8.20"

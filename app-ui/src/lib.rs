@@ -3,6 +3,8 @@
 mod app;
 mod components;
 mod i18n;
+#[cfg(target_arch = "wasm32")]
+mod native_chrome;
 mod pages;
 mod tauri_bridge;
 
@@ -13,5 +15,6 @@ pub use app::App;
 #[wasm_bindgen::prelude::wasm_bindgen(start)]
 pub fn start() {
   console_error_panic_hook::set_once();
+  native_chrome::install();
   leptos::mount::mount_to_body(App);
 }

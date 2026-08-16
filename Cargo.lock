@@ -2194,6 +2194,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2483,7 +2492,7 @@ dependencies = [
  "convert_case 0.11.0",
  "convert_case_extras",
  "html-escape",
- "itertools",
+ "itertools 0.14.0",
  "leptos_hot_reload",
  "prettyplease",
  "proc-macro-error2",
@@ -3742,7 +3751,7 @@ checksum = "c30fd35b7d299c591293bb69fed47a703eb2703b1cff0493e78b16ed007e5382"
 dependencies = [
  "guardian",
  "indexmap 2.14.0",
- "itertools",
+ "itertools 0.14.0",
  "or_poisoned",
  "paste",
  "reactive_graph",
@@ -4758,7 +4767,7 @@ dependencies = [
  "futures",
  "html-escape",
  "indexmap 2.14.0",
- "itertools",
+ "itertools 0.14.0",
  "js-sys",
  "next_tuple",
  "oco_ref",
@@ -4974,6 +4983,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-prevent-default"
+version = "5.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "674bac5c9831f4ca7ae42840768ac968b76353dcbe30bb0aad149c56f0be1389"
+dependencies = [
+ "bitflags 2.13.1",
+ "itertools 0.15.0",
+ "serde",
+ "strum",
+ "tauri",
+ "thiserror 2.0.19",
+ "webview2-com",
+ "windows",
+]
+
+[[package]]
 name = "tauri-plugin-shell"
 version = "2.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5181,6 +5206,7 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "tauri-plugin-prevent-default",
  "tauri-plugin-shell",
  "tauri-plugin-updater",
  "toml 0.8.23",

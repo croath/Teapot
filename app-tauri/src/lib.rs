@@ -18,6 +18,7 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(prevent_webview_defaults())
     .manage(ServerRuntime::new())
     .manage(updater::PendingUpdate::new())
     .setup(|app| {
@@ -74,6 +75,33 @@ fn set_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> {
 #[tauri::command]
 fn get_locale(app: tauri::AppHandle) -> String {
   load_locale(&app).id().to_string()
+}
+
+/// Hide browser-like webview chrome (Reload / Inspect / F5 / view-source) in
+/// both `cargo tauri dev` and release builds.
+fn prevent_webview_defaults() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+  use tauri_plugin_prevent_default::Flags;
+
+  let builder = tauri_plugin_prevent_default::Builder::new().with_flags(
+    Flags::CONTEXT_MENU
+      | Flags::DEV_TOOLS
+      | Flags::RELOAD
+      | Flags::FIND
+      | Flags::DOWNLOADS
+      | Flags::SOURCE
+      | Flags::OPEN
+      | Flags::PRINT
+      | Flags::CARET_BROWSING,
+  );
+
+  #[cfg(windows)]
+  let builder = builder.platform(
+    tauri_plugin_prevent_default::PlatformOptions::new()
+      .default_context_menus(false)
+      .browser_accelerator_keys(false),
+  );
+
+  builder.build()
 }
 
 fn build_app_menu(
