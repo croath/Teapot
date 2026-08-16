@@ -24,6 +24,12 @@ This repository is **Teapot**: turn local provider CLIs into OpenAI- and Anthrop
   `plugins.updater.pubkey` (from `.tauri/tauri-updator.key.pub`). Release
   builds need `source .tauri/export-tauri-updater.sh` (or the matching
   GitHub secrets) because `bundle.createUpdaterArtifacts` is true.
+- TelemetryDeck (install + DAU): `app-tauri/src/telemetry.rs`. App ID is
+  baked at compile time from `TELEMETRYDECK_APP_ID` (`app-tauri/build.rs`).
+  Empty value disables sending. Process env wins, then `app-tauri/.env`,
+  then workspace `.env`. Debug builds send `isTestMode` unless
+  `TELEMETRYDECK_TEST_MODE=false`. Release CI should set the
+  `TELEMETRYDECK_APP_ID` GitHub secret so production builds emit signals.
 
 ## Workspace dependency rules
 
@@ -227,8 +233,35 @@ cargo check -p teapot-core -p teapot-cli
 - Prefer small, testable modules; do not add heavy deps without need.
 - rustfmt: 2-space indent (see `rustfmt.toml`).
 
+## Desktop analytics (TelemetryDeck)
+
+The Tauri shell posts **Ingest API v2** to `https://nom.telemetrydeck.com/v2/`.
+CLI-only `teapotx` does not send analytics.
+
+| Type | When | Metric |
+|------|------|--------|
+| `App.installed` | First launch only (new `telemetry_client_id`) | Installs / new users |
+| `TelemetryDeck.Session.started` | Every process start | Sessions |
+| `App.dailyActive` | ≤1× per local calendar day | DAU |
+
+Identity: random UUID in the Tauri app-data dir (`telemetry_client_id`) →
+SHA-256 hex as `clientUser`. DAU marker: `telemetry_last_daily_active`
+(`YYYY-MM-DD`). A background thread re-checks every 30 minutes so
+long-running sessions still count the next day.
+
+```bash
+# .env (workspace root or app-tauri/.env)
+TELEMETRYDECK_APP_ID=YOUR-UUID-APP-ID
+# TELEMETRYDECK_TEST_MODE=false
+```
+
+Rebuild after changing env. Dashboard: enable **Test Mode** to see debug
+signals (`Explore → Recent Signals`). Production Overview hides test data.
+
 ## Security notes
 
 - Optional `api_key` in config; when set, require `Authorization: Bearer` or `x-api-key`.
 - Default listen address is localhost only.
 - Provider CLIs inherit the server environment; do not log full prompts at info level in production.
+- TelemetryDeck never receives serial numbers or hardware UUIDs. The install
+  id stays local; only its SHA-256 hex is posted.

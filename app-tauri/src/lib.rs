@@ -2,6 +2,7 @@
 
 mod i18n;
 mod server;
+mod telemetry;
 mod updater;
 
 use i18n::{Locale, load_locale, save_locale};
@@ -25,6 +26,7 @@ pub fn run() {
       let locale = load_locale(app.handle());
       let menu = build_app_menu(app.handle(), locale)?;
       app.set_menu(menu)?;
+      telemetry::spawn_launch_signals(app.handle());
       Ok(())
     })
     .on_menu_event(|app, event| match event.id().0.as_str() {

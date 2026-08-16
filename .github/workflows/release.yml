@@ -5,6 +5,7 @@
 #   TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 # Optional repository secrets:
 #   ANTIGRAVITY_CLIENT_ID / ANTIGRAVITY_CLIENT_SECRET
+#   TELEMETRYDECK_APP_ID (desktop install + DAU; empty disables)
 #   APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY
 #   APPLE_API_ISSUER / APPLE_API_KEY / APPLE_API_KEY_CONTENT
 #   WINDOWS_CERTIFICATE / WINDOWS_CERTIFICATE_PASSWORD
@@ -26,6 +27,7 @@ env:
   CARGO_INCREMENTAL: 0
   ANTIGRAVITY_CLIENT_ID: ${{ secrets.ANTIGRAVITY_CLIENT_ID }}
   ANTIGRAVITY_CLIENT_SECRET: ${{ secrets.ANTIGRAVITY_CLIENT_SECRET }}
+  TELEMETRYDECK_APP_ID: ${{ secrets.TELEMETRYDECK_APP_ID }}
 
 jobs:
   teapotx:
@@ -182,6 +184,7 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          TELEMETRYDECK_APP_ID: ${{ secrets.TELEMETRYDECK_APP_ID }}
         with:
           projectPath: app-tauri
           # Action runs `${tauriScript} build …`. `cargo` alone is a debug cargo build.
