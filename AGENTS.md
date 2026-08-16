@@ -15,10 +15,10 @@ This repository is **Teapot**: turn local provider CLIs into OpenAI- and Anthrop
 
 - **Bun only** (no pnpm/npm). + **Tailwind CSS v4** + **Trunk**. Source CSS: `styles/tailwind.css`.
 - Primary brand color: `#1179ac`. macOS liquid-glass panels over transparent window + overlay titlebar.
-- Pages: `pages/home.rs` (serve switch), `settings.rs` (macOS-style hub + Generate / Debug / About panes).
-- Navigation: home shows a Settings gear → `/settings`; panes at `/settings/generate|debug|about`. Native system menu also opens these routes.
-- Dev UI: `cd app-ui && bun install && bun run dev`
-- Desktop: `bash scripts/prepare-sidecar.sh` once, then `cd app-tauri && cargo tauri dev`
+- Pages: `pages/home.rs` (serve switch), `settings.rs` (macOS-style hub + General / Debug / About / Language panes).
+- Navigation: home shows a Settings gear → `/settings`; panes at `/settings/generate|debug|about|language`. Native system menu also opens these routes.
+- Dev UI: `cd app-ui && bun install && trunk serve`
+- Desktop: `bash scripts/prepare-sidecar.sh` once, then `cargo tauri dev`
 - Sidecar: `app-tauri/binaries/teapotx-<target-triple>` via `bundle.externalBin`
 
 ## Workspace dependency rules

@@ -309,12 +309,17 @@
     -webkit-backdrop-filter: blur(32px) saturate(180%);
   }
 
-  .settings-group > a {
-    @apply relative flex items-center gap-3 px-3.5 py-3 no-underline transition-colors;
+  .settings-group > a,
+  .settings-group > button.settings-lang-option {
+    @apply relative flex w-full items-center gap-3 px-3.5 py-3 text-left no-underline transition-colors;
     color: inherit;
+    background: transparent;
+    border: 0;
+    appearance: none;
   }
 
-  .settings-group > a + a::before {
+  .settings-group > a + a::before,
+  .settings-group > button.settings-lang-option + button.settings-lang-option::before {
     content: "";
     position: absolute;
     left: 3.75rem;
@@ -324,12 +329,23 @@
     background: oklch(1 0 0 / 0.08);
   }
 
-  .settings-group > a:hover {
+  .settings-group > button.settings-lang-option + button.settings-lang-option::before {
+    left: 1rem;
+  }
+
+  .settings-group > a:hover,
+  .settings-group > button.settings-lang-option:hover {
     background: oklch(1 0 0 / 0.06);
   }
 
-  .settings-group > a:active {
+  .settings-group > a:active,
+  .settings-group > button.settings-lang-option:active {
     background: oklch(1 0 0 / 0.1);
+  }
+
+  .settings-lang-check {
+    @apply shrink-0;
+    color: #5eb8e8;
   }
 
   .settings-row-icon {
@@ -349,6 +365,10 @@
 
   .settings-row-icon-about {
     background: linear-gradient(145deg, #8b9cb3, #64748b 55%, #475569);
+  }
+
+  .settings-row-icon-language {
+    background: linear-gradient(145deg, #8b9cff, #4f46e5 55%, #3730a3);
   }
 
   .settings-row-text {
@@ -419,10 +439,6 @@
     @apply bg-black/20!;
   }
 
-  .settings-path {
-    @apply text-muted-foreground border-t border-white/5 px-4 py-3 text-[10px] leading-relaxed break-all;
-  }
-
   .settings-footer-actions {
     @apply flex justify-end px-1;
   }
@@ -472,7 +488,7 @@
   }
 
   .settings-about-icon {
-    @apply relative size-24 rounded-[26px];
+    @apply relative size-24 rounded-[26px] object-contain;
     box-shadow:
       0 16px 36px -12px color-mix(in srgb, #1179ac 55%, transparent),
       0 1px 0 oklch(1 0 0 / 0.25) inset;
@@ -539,20 +555,53 @@
 
   /* Home: short intro + status + switch */
   .home-simple {
-    @apply flex flex-col items-center gap-5;
+    @apply flex flex-col items-center gap-7;
+    animation: settings-in 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .home-intro {
-    @apply mb-1 max-w-[17rem] space-y-1.5 text-center;
+    @apply flex max-w-[18rem] flex-col items-center text-center;
+  }
+
+  .home-mark {
+    @apply relative mb-3 flex size-16 items-center justify-center;
+  }
+
+  .home-mark-glow {
+    position: absolute;
+    inset: -18px;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      color-mix(in srgb, #1179ac 48%, transparent) 0%,
+      transparent 70%
+    );
+    filter: blur(6px);
+    pointer-events: none;
+  }
+
+  .home-mark-icon {
+    @apply relative size-16 rounded-[18px] object-contain;
+    box-shadow:
+      0 14px 28px -12px color-mix(in srgb, #1179ac 55%, transparent),
+      0 1px 0 oklch(1 0 0 / 0.28) inset;
   }
 
   .home-name {
-    @apply text-2xl font-semibold tracking-tight;
-    letter-spacing: -0.03em;
+    @apply text-[1.85rem] font-bold tracking-tight;
+    letter-spacing: -0.035em;
+    background: linear-gradient(
+      120deg,
+      oklch(0.98 0.01 230) 0%,
+      color-mix(in srgb, #1179ac 55%, white) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
   .home-blurb {
-    @apply text-muted-foreground text-sm leading-relaxed;
+    @apply text-muted-foreground mt-1.5 text-[13px] leading-relaxed;
   }
 
   .home-error {
@@ -563,17 +612,118 @@
     @apply mt-1 max-w-[16rem] text-center;
   }
 
+  /* Home: compact labeled switch */
+  .serve-switch {
+    @apply flex flex-col items-center gap-2 px-5 py-4;
+    border-radius: 20px;
+    border: 1px solid oklch(1 0 0 / 0.1);
+    background: oklch(1 0 0 / 0.05);
+    box-shadow: 0 1px 0 0 oklch(1 0 0 / 0.08) inset;
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    transition:
+      border-color 0.32s ease,
+      background 0.32s ease,
+      box-shadow 0.32s ease;
+  }
+
+  .serve-switch[data-state="checked"] {
+    border-color: color-mix(in srgb, #1179ac 32%, transparent);
+    background: color-mix(in srgb, #1179ac 12%, oklch(1 0 0 / 0.04));
+    box-shadow:
+      0 1px 0 0 oklch(1 0 0 / 0.1) inset,
+      0 12px 28px -18px color-mix(in srgb, #1179ac 45%, transparent);
+  }
+
+  .serve-switch-row {
+    @apply flex items-center gap-2.5;
+  }
+
+  .serve-switch-label {
+    @apply w-10 text-center text-[11px] font-medium tracking-wide text-muted-foreground/70;
+    transition: color 0.28s ease, opacity 0.28s ease;
+  }
+
+  .serve-switch-label-on {
+    @apply text-foreground;
+  }
+
+  .serve-switch [data-name="Switch"] {
+    box-shadow: 0 1px 2px oklch(0 0 0 / 0.25) inset;
+    transition:
+      background-color 0.32s ease,
+      box-shadow 0.32s ease,
+      transform 0.18s ease;
+  }
+
+  .serve-switch [data-name="Switch"][data-state="checked"] {
+    box-shadow:
+      0 0 18px -4px color-mix(in srgb, #1179ac 70%, transparent),
+      0 1px 0 oklch(1 0 0 / 0.28) inset;
+  }
+
+  .serve-switch [data-name="Switch"] > span {
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 0.98) 0%,
+      oklch(0.94 0.01 230) 100%
+    );
+    transition:
+      transform 0.38s cubic-bezier(0.22, 1.45, 0.36, 1),
+      width 0.18s ease;
+    will-change: transform;
+  }
+
+  .serve-switch [data-name="Switch"]:active:not(:disabled) > span {
+    width: 1.7rem;
+  }
+
+  .serve-switch-status {
+    @apply text-muted-foreground mt-1 flex items-center gap-1.5 text-xs font-medium;
+    transition: color 0.28s ease;
+  }
+
+  .serve-switch[data-state="checked"] .serve-switch-status {
+    color: oklch(0.88 0.04 150);
+  }
+
   .status-dot {
     @apply inline-block size-1.5 rounded-full;
+    transition:
+      background-color 0.28s ease,
+      box-shadow 0.28s ease;
   }
 
   .status-dot-on {
     background: #4ade80;
     box-shadow: 0 0 8px #4ade80;
+    animation: status-dot-pulse 1.8s ease-in-out infinite;
   }
 
   .status-dot-off {
     @apply bg-muted-foreground/70;
+  }
+
+  @keyframes status-dot-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 6px #4ade80;
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 0 11px #4ade80;
+      transform: scale(1.15);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .serve-switch [data-name="Switch"],
+    .serve-switch [data-name="Switch"] > span,
+    .serve-switch-label,
+    .status-dot {
+      transition: none;
+      animation: none;
+    }
   }
 
   .settings-card {

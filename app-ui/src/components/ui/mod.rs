@@ -1,11 +1,11 @@
 pub mod badge;
-pub mod label;
-pub mod select;
-pub mod card;
 pub mod button;
+pub mod card;
 pub mod input;
+pub mod label;
 pub mod progress;
-pub mod sonner;
+pub mod select;
 pub mod separator;
-pub mod textarea;
+pub mod sonner;
 pub mod switch;
+pub mod textarea;

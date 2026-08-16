@@ -184,3 +184,8 @@ pub struct AppInfo {
 pub struct SaveConfigArgs {
   pub config: AppConfigDto,
 }
+
+#[derive(Debug, Serialize)]
+pub struct SetLocaleArgs {
+  pub locale: String,
+}

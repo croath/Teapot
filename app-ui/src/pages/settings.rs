@@ -1,14 +1,15 @@
-//! macOS-style Settings: hub + Generate / Debug / About panes.
+//! macOS-style Settings: hub + General / Debug / About / Language panes.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use icons::{Bug, ChevronRight, Info, ServerCog};
+use icons::{Bug, Check, ChevronRight, Info, Languages, ServerCog};
 use leptos::prelude::*;
 use leptos_router::components::A;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::components::{Button, ButtonVariant, Input, InputType, Label};
+use crate::i18n::{Locale, Msg, use_i18n};
 use crate::tauri_bridge::{self, AppConfigDto, AppInfo, SaveConfigArgs};
 
 // ─── Hub ───────────────────────────────────────────────────────────────────
@@ -16,40 +17,52 @@ use crate::tauri_bridge::{self, AppConfigDto, AppInfo, SaveConfigArgs};
 /// Settings root: category list (macOS System Settings feel).
 #[component]
 pub fn SettingsPage() -> impl IntoView {
+  let i18n = use_i18n();
   view! {
     <div class="settings-shell">
       <header class="settings-hero">
         <div class="settings-done">
-          <A href="/">"Done"</A>
+          <A href="/">{i18n.t(Msg::Done)}</A>
         </div>
-        <h1 class="settings-large-title">"Settings"</h1>
-        <p class="settings-hero-sub">"Configure teapotx and explore diagnostics."</p>
+        <h1 class="settings-large-title">{i18n.t(Msg::Settings)}</h1>
+        <p class="settings-hero-sub">{i18n.t(Msg::SettingsHeroSub)}</p>
       </header>
 
-      <section class="settings-group" aria-label="Settings categories">
+      <section class="settings-group" aria-label=move || i18n.t(Msg::SettingsCategories).get()>
         <SettingsRow
           href="/settings/generate"
-          title="Generate"
-          subtitle="Listen address & API key"
+          title=i18n.t(Msg::General)
+          subtitle=i18n.t(Msg::GeneralSub)
           accent="generate"
         >
           <ServerCog class="size-5".to_string() />
         </SettingsRow>
         <SettingsRow
           href="/settings/debug"
-          title="Debug"
-          subtitle="Live logs & export"
+          title=i18n.t(Msg::Debug)
+          subtitle=i18n.t(Msg::DebugSub)
           accent="debug"
         >
           <Bug class="size-5".to_string() />
         </SettingsRow>
         <SettingsRow
           href="/settings/about"
-          title="About"
-          subtitle="Version & app info"
+          title=i18n.t(Msg::About)
+          subtitle=i18n.t(Msg::AboutSub)
           accent="about"
         >
           <Info class="size-5".to_string() />
+        </SettingsRow>
+      </section>
+
+      <section class="settings-group" aria-label=move || i18n.t(Msg::Language).get()>
+        <SettingsRow
+          href="/settings/language"
+          title=i18n.t(Msg::Language)
+          subtitle=Signal::derive(move || i18n.locale().get().native_name())
+          accent="language"
+        >
+          <Languages class="size-5".to_string() />
         </SettingsRow>
       </section>
     </div>
@@ -59,8 +72,8 @@ pub fn SettingsPage() -> impl IntoView {
 #[component]
 fn SettingsRow(
   href: &'static str,
-  title: &'static str,
-  subtitle: &'static str,
+  #[prop(into)] title: Signal<&'static str>,
+  #[prop(into)] subtitle: Signal<&'static str>,
   accent: &'static str,
   children: Children,
 ) -> impl IntoView {
@@ -71,8 +84,8 @@ fn SettingsRow(
         {children()}
       </span>
       <span class="settings-row-text">
-        <span class="settings-row-title">{title}</span>
-        <span class="settings-row-sub">{subtitle}</span>
+        <span class="settings-row-title">{move || title.get()}</span>
+        <span class="settings-row-sub">{move || subtitle.get()}</span>
       </span>
       <ChevronRight class="settings-row-chevron size-4".to_string() />
     </A>
@@ -83,24 +96,24 @@ fn SettingsRow(
 
 #[component]
 fn SettingsDetail(
-  title: &'static str,
-  #[prop(optional)] subtitle: Option<&'static str>,
+  #[prop(into)] title: Signal<&'static str>,
+  #[prop(optional)] subtitle: Option<Signal<&'static str>>,
   children: Children,
 ) -> impl IntoView {
-  let sub = subtitle.unwrap_or("");
-  let has_sub = !sub.is_empty();
+  let i18n = use_i18n();
+  let has_sub = subtitle.is_some();
   view! {
     <div class="settings-shell settings-shell-detail">
       <header class="settings-detail-bar">
         <div class="settings-back">
           <A href="/settings">
             <span class="settings-back-chevron" aria-hidden="true">"‹"</span>
-            <span>"Settings"</span>
+            <span>{i18n.t(Msg::Settings)}</span>
           </A>
         </div>
-        <h1 class="settings-detail-title">{title}</h1>
+        <h1 class="settings-detail-title">{move || title.get()}</h1>
         <Show when=move || has_sub>
-          <p class="settings-detail-sub">{sub}</p>
+          <p class="settings-detail-sub">{move || subtitle.map(|s| s.get()).unwrap_or("")}</p>
         </Show>
       </header>
       <div class="settings-detail-body">
@@ -110,14 +123,14 @@ fn SettingsDetail(
   }
 }
 
-// ─── Generate ──────────────────────────────────────────────────────────────
+// ─── General ───────────────────────────────────────────────────────────────
 
 #[component]
 pub fn SettingsGeneratePage() -> impl IntoView {
+  let i18n = use_i18n();
   let listen = RwSignal::new("127.0.0.1:8080".to_string());
   let api_key = RwSignal::new(String::new());
-  let config_path = RwSignal::new(String::new());
-  let status = RwSignal::new(Option::<String>::None);
+  let status = RwSignal::new(Option::<Msg>::None);
   let error = RwSignal::new(Option::<String>::None);
   let saving = RwSignal::new(false);
   let in_tauri = tauri_bridge::is_tauri();
@@ -134,16 +147,13 @@ pub fn SettingsGeneratePage() -> impl IntoView {
         }
         Err(e) => error.set(Some(e)),
       }
-      if let Ok(path) = tauri_bridge::invoke0::<String>("get_config_path").await {
-        config_path.set(path);
-      }
     });
   });
 
   let on_save = move |_| {
     if !in_tauri {
       error.set(Some(
-        "Open Teapot via the desktop app to save config.".into(),
+        i18n.locale().get_untracked().t(Msg::DesktopOnlySave).into(),
       ));
       return;
     }
@@ -159,7 +169,7 @@ pub fn SettingsGeneratePage() -> impl IntoView {
     };
     spawn_local(async move {
       match tauri_bridge::invoke::<(), _>("save_config", SaveConfigArgs { config: cfg }).await {
-        Ok(()) => status.set(Some("Config saved. Restart the server to apply.".into())),
+        Ok(()) => status.set(Some(Msg::ConfigSaved)),
         Err(e) => error.set(Some(e)),
       }
       saving.set(false);
@@ -167,35 +177,30 @@ pub fn SettingsGeneratePage() -> impl IntoView {
   };
 
   view! {
-    <SettingsDetail title="Generate" subtitle="teapotx serve configuration">
+    <SettingsDetail title=i18n.t(Msg::General) subtitle=i18n.t(Msg::GeneralDetailSub)>
       <div class="settings-group settings-group-form">
         <div class="settings-field">
-          <Label>"Listen address"</Label>
+          <Label>{i18n.t(Msg::ListenAddress)}</Label>
           <Input
             r#type=InputType::Text
             bind_value=listen
             class="font-mono settings-input"
             placeholder="127.0.0.1:8080"
           />
-          <p class="field-hint">"Host:port for the local API server."</p>
+          <p class="field-hint">{i18n.t(Msg::ListenHint)}</p>
         </div>
         <div class="settings-field">
-          <Label>"API key"</Label>
+          <Label>{i18n.t(Msg::ApiKey)}</Label>
           <Input
             r#type=InputType::Password
             bind_value=api_key
             class="font-mono settings-input"
-            placeholder="(empty — no auth)"
+            placeholder=Signal::derive(move || i18n.t(Msg::ApiKeyPlaceholder).get().to_string())
           />
           <p class="field-hint">
-            "Optional. When set, clients need Bearer / x-api-key."
+            {i18n.t(Msg::ApiKeyHint)}
           </p>
         </div>
-        <Show when=move || !config_path.get().is_empty()>
-          <p class="settings-path font-mono">
-            {move || config_path.get()}
-          </p>
-        </Show>
       </div>
 
       <div class="settings-footer-actions">
@@ -205,12 +210,20 @@ pub fn SettingsGeneratePage() -> impl IntoView {
           prop:disabled=move || saving.get() || !in_tauri
           class="settings-primary-btn"
         >
-          {move || if saving.get() { "Saving…" } else { "Save config" }}
+          {move || {
+            if saving.get() {
+              i18n.locale().get().t(Msg::Saving)
+            } else {
+              i18n.locale().get().t(Msg::SaveConfig)
+            }
+          }}
         </Button>
       </div>
 
       <Show when=move || status.get().is_some()>
-        <p class="form-ok">{move || status.get().unwrap_or_default()}</p>
+        <p class="form-ok">
+          {move || status.get().map(|m| i18n.locale().get().t(m)).unwrap_or_default()}
+        </p>
       </Show>
       <Show when=move || error.get().is_some()>
         <p class="home-error">{move || error.get().unwrap_or_default()}</p>
@@ -223,23 +236,19 @@ pub fn SettingsGeneratePage() -> impl IntoView {
 
 #[component]
 pub fn SettingsDebugPage() -> impl IntoView {
+  let i18n = use_i18n();
   let logs = RwSignal::new(String::new());
   let error = RwSignal::new(Option::<String>::None);
   let in_tauri = tauri_bridge::is_tauri();
 
   let refresh = move || {
     if !in_tauri {
-      logs.set("Logs are available in the Teapot desktop app.".into());
       return;
     }
     spawn_local(async move {
       match tauri_bridge::invoke0::<String>("get_logs").await {
         Ok(text) => {
-          logs.set(if text.is_empty() {
-            "(no log lines yet)".into()
-          } else {
-            text
-          });
+          logs.set(text);
           error.set(None);
         }
         Err(e) => error.set(Some(e)),
@@ -267,8 +276,10 @@ pub fn SettingsDebugPage() -> impl IntoView {
 
   let on_export = move |_| {
     let content = logs.get_untracked();
-    if content.is_empty() || content == "(no log lines yet)" {
-      error.set(Some("Nothing to export.".into()));
+    if content.is_empty() {
+      error.set(Some(
+        i18n.locale().get_untracked().t(Msg::NothingToExport).into(),
+      ));
       return;
     }
     let stamp = js_sys::Date::new_0()
@@ -288,23 +299,35 @@ pub fn SettingsDebugPage() -> impl IntoView {
     }
     spawn_local(async move {
       let _ = tauri_bridge::invoke0::<()>("clear_logs").await;
-      logs.set("(no log lines yet)".into());
+      logs.set(String::new());
     });
   };
 
   view! {
-    <SettingsDetail title="Debug" subtitle="teapotx stdout / stderr">
+    <SettingsDetail title=i18n.t(Msg::Debug) subtitle=i18n.t(Msg::DebugDetailSub)>
       <div class="settings-toolbar">
         <Button variant=ButtonVariant::Outline on:click=on_clear class="settings-chip-btn">
-          "Clear"
+          {i18n.t(Msg::Clear)}
         </Button>
         <Button variant=ButtonVariant::Default on:click=on_export class="settings-chip-btn">
-          "Export"
+          {i18n.t(Msg::Export)}
         </Button>
       </div>
 
       <div class="settings-group settings-log-card">
-        <pre class="log-view">{move || logs.get()}</pre>
+        <pre class="log-view">
+          {move || {
+            if !in_tauri {
+              return i18n.locale().get().t(Msg::LogsDesktopOnly).to_string();
+            }
+            let text = logs.get();
+            if text.is_empty() {
+              i18n.locale().get().t(Msg::NoLogs).to_string()
+            } else {
+              text
+            }
+          }}
+        </pre>
       </div>
 
       <Show when=move || error.get().is_some()>
@@ -318,6 +341,7 @@ pub fn SettingsDebugPage() -> impl IntoView {
 
 #[component]
 pub fn SettingsAboutPage() -> impl IntoView {
+  let i18n = use_i18n();
   let version = RwSignal::new(env!("CARGO_PKG_VERSION").to_string());
   let name = RwSignal::new("Teapot".to_string());
   let in_tauri = tauri_bridge::is_tauri();
@@ -335,30 +359,69 @@ pub fn SettingsAboutPage() -> impl IntoView {
   });
 
   view! {
-    <SettingsDetail title="About">
+    <SettingsDetail title=i18n.t(Msg::About)>
       <div class="settings-about">
         <div class="settings-about-hero">
           <div class="settings-about-glow" aria-hidden="true"></div>
           <img
-            src="app-icon.png"
-            alt=""
+            src="/app-icon.png"
+            alt="Teapot"
             class="settings-about-icon"
             width="96"
             height="96"
           />
           <h2 class="settings-about-name">{move || name.get()}</h2>
           <p class="settings-about-version">
-            "Version "
+            {i18n.t(Msg::Version)}
+            " "
             <span class="font-mono">{move || version.get()}</span>
           </p>
         </div>
 
         <div class="settings-group settings-about-blurb">
           <p>
-            "Turn local provider CLIs into OpenAI- and Anthropic-compatible HTTP APIs."
+            {i18n.t(Msg::AboutBlurb)}
           </p>
         </div>
       </div>
+    </SettingsDetail>
+  }
+}
+
+// ─── Language ──────────────────────────────────────────────────────────────
+
+#[component]
+pub fn SettingsLanguagePage() -> impl IntoView {
+  let i18n = use_i18n();
+  view! {
+    <SettingsDetail title=i18n.t(Msg::Language) subtitle=i18n.t(Msg::LanguageDetailSub)>
+      <section
+        class="settings-group"
+        role="radiogroup"
+        aria-label=move || i18n.t(Msg::Language).get()
+      >
+        {Locale::ALL
+          .into_iter()
+          .map(|locale| {
+            view! {
+              <button
+                type="button"
+                class="settings-lang-option"
+                role="radio"
+                aria-checked=move || (i18n.locale().get() == locale).to_string()
+                on:click=move |_| i18n.set(locale)
+              >
+                <span class="settings-row-text">
+                  <span class="settings-row-title">{locale.native_name()}</span>
+                </span>
+                <Show when=move || i18n.locale().get() == locale>
+                  <Check class="settings-lang-check size-4".to_string() />
+                </Show>
+              </button>
+            }
+          })
+          .collect_view()}
+      </section>
     </SettingsDetail>
   }
 }

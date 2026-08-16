@@ -1,7 +1,9 @@
 //! Teapot desktop shell: liquid-glass UI host + bundled `teapotx` sidecar.
 
+mod i18n;
 mod server;
 
+use i18n::{Locale, load_locale, save_locale};
 use server::ServerRuntime;
 use tauri::Emitter;
 use tauri::menu::{MenuBuilder, MenuItem, SubmenuBuilder};
@@ -16,7 +18,8 @@ pub fn run() {
     .plugin(tauri_plugin_shell::init())
     .manage(ServerRuntime::new())
     .setup(|app| {
-      let menu = build_app_menu(app.handle())?;
+      let locale = load_locale(app.handle());
+      let menu = build_app_menu(app.handle(), locale)?;
       app.set_menu(menu)?;
       Ok(())
     })
@@ -41,18 +44,37 @@ pub fn run() {
       server::get_logs,
       server::clear_logs,
       server::get_app_info,
-      server::get_config_path,
+      set_locale,
+      get_locale,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
 
-fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
-  let pkg_name = app.package_info().name.clone();
+#[tauri::command]
+fn set_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> {
+  let parsed = Locale::parse(&locale);
+  save_locale(&app, parsed)?;
+  let menu = build_app_menu(&app, parsed).map_err(|e| e.to_string())?;
+  app.set_menu(menu).map_err(|e| e.to_string())?;
+  Ok(())
+}
 
-  let settings_item = MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?;
-  let about_item = MenuItem::with_id(app, "about", "About Teapot", true, None::<&str>)?;
-  let debug_item = MenuItem::with_id(app, "debug", "Debug Logs", true, None::<&str>)?;
+#[tauri::command]
+fn get_locale(app: tauri::AppHandle) -> String {
+  load_locale(&app).id().to_string()
+}
+
+fn build_app_menu(
+  app: &tauri::AppHandle,
+  locale: Locale,
+) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+  let pkg_name = app.package_info().name.clone();
+  let copy = locale.menu();
+
+  let settings_item = MenuItem::with_id(app, "settings", copy.settings, true, Some("CmdOrCtrl+,"))?;
+  let about_item = MenuItem::with_id(app, "about", copy.about, true, None::<&str>)?;
+  let debug_item = MenuItem::with_id(app, "debug", copy.debug, true, None::<&str>)?;
 
   #[cfg(target_os = "macos")]
   let app_submenu = SubmenuBuilder::new(app, &pkg_name)
@@ -69,13 +91,13 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tau
     .build()?;
 
   #[cfg(not(target_os = "macos"))]
-  let file_submenu = SubmenuBuilder::new(app, "File")
+  let file_submenu = SubmenuBuilder::new(app, copy.file)
     .item(&settings_item)
     .separator()
     .quit()
     .build()?;
 
-  let edit_submenu = SubmenuBuilder::new(app, "Edit")
+  let edit_submenu = SubmenuBuilder::new(app, copy.edit)
     .undo()
     .redo()
     .separator()
@@ -85,7 +107,7 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tau
     .select_all()
     .build()?;
 
-  let window_submenu = SubmenuBuilder::new(app, "Window")
+  let window_submenu = SubmenuBuilder::new(app, copy.window)
     .minimize()
     .maximize()
     .separator()
@@ -95,11 +117,13 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tau
   let help_submenu = {
     #[cfg(target_os = "macos")]
     {
-      SubmenuBuilder::new(app, "Help").item(&debug_item).build()?
+      SubmenuBuilder::new(app, copy.help)
+        .item(&debug_item)
+        .build()?
     }
     #[cfg(not(target_os = "macos"))]
     {
-      SubmenuBuilder::new(app, "Help")
+      SubmenuBuilder::new(app, copy.help)
         .item(&about_item)
         .separator()
         .item(&debug_item)

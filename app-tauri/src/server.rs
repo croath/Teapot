@@ -175,11 +175,6 @@ pub fn get_app_info(app: AppHandle) -> AppInfo {
 }
 
 #[tauri::command]
-pub fn get_config_path(app: AppHandle) -> Result<String, String> {
-  Ok(config_path(&app)?.display().to_string())
-}
-
-#[tauri::command]
 pub async fn start_server(app: AppHandle, state: State<'_, ServerRuntime>) -> Result<(), String> {
   if state.is_running() {
     return Ok(());

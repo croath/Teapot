@@ -5,12 +5,12 @@
   "identifier": "com.cdxtheme.teapot",
   "build": {
     "beforeDevCommand": {
-      "script": "bash ../scripts/ensure-sidecar.sh && bun run dev",
+      "script": "bash ../scripts/ensure-sidecar.sh && trunk serve",
       "cwd": "../app-ui"
     },
     "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": {
-      "script": "bash ../scripts/prepare-sidecar.sh release && bun run build",
+      "script": "bash ../scripts/prepare-sidecar.sh release && trunk build --release",
       "cwd": "../app-ui"
     },
     "frontendDist": "../app-ui/dist"

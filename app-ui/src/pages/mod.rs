@@ -5,5 +5,5 @@ mod settings;
 
 pub use home::HomePage;
 pub use settings::{
-  SettingsAboutPage, SettingsDebugPage, SettingsGeneratePage, SettingsPage,
+  SettingsAboutPage, SettingsDebugPage, SettingsGeneratePage, SettingsLanguagePage, SettingsPage,
 };

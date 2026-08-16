@@ -40,6 +40,8 @@ web-sys = { workspace = true, features = [
   "Url",
   "Window",
   "Document",
+  "Storage",
+  "Navigator",
 ] }
 
 # Used by the rust-ui `ui` CLI to find the Tailwind entry
