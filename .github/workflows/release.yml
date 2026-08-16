@@ -39,10 +39,18 @@ jobs:
             target: aarch64-unknown-linux-gnu
             bin: teapotx
             asset: teapotx-aarch64-unknown-linux-gnu
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bin: teapotx
+            asset: teapotx-x86_64-unknown-linux-gnu
           - os: windows-11-arm
             target: aarch64-pc-windows-msvc
             bin: teapotx.exe
             asset: teapotx-aarch64-pc-windows-msvc.exe
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: teapotx.exe
+            asset: teapotx-x86_64-pc-windows-msvc.exe
           - os: macos-latest
             target: aarch64-apple-darwin
             bin: teapotx
@@ -100,6 +108,9 @@ jobs:
             bundles: dmg,app
           - os: windows-11-arm
             target: aarch64-pc-windows-msvc
+            bundles: nsis
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
             bundles: nsis
     steps:
       - uses: actions/checkout@v4
