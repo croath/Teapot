@@ -1,31 +1,165 @@
-//! Main page: status + switch for `teapotx serve`.
+//! Main page: provider picker + auth + switch for `teapotx serve`.
 
+use leptos::ev;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::Switch;
+use crate::components::{Button, ButtonSize, ButtonVariant, Switch};
 use crate::i18n::{Msg, use_i18n};
-use crate::tauri_bridge::{self, ServerStatus};
+use crate::tauri_bridge::{self, AppConfigDto, AuthStatus, ProviderArgs, ServerStatus};
+
+const DEFAULT_PROVIDER: &str = "codex";
+
+const PROVIDERS: &[(&str, &str)] = &[
+  ("codex", "Codex"),
+  ("claude", "Claude"),
+  ("xai", "xAI"),
+  ("antigravity", "Antigravity"),
+  ("vertex", "Vertex"),
+];
 
 #[component]
 pub fn HomePage() -> impl IntoView {
   let i18n = use_i18n();
   let running = RwSignal::new(false);
   let busy = RwSignal::new(false);
+  let signing_in = RwSignal::new(false);
+  let provider = RwSignal::new(DEFAULT_PROVIDER.to_string());
+  let auth = RwSignal::new(Option::<AuthStatus>::None);
   let error = RwSignal::new(Option::<String>::None);
   let in_tauri = tauri_bridge::is_tauri();
+
+  let refresh_auth = move |id: String| {
+    if !in_tauri {
+      return;
+    }
+    spawn_local(async move {
+      match tauri_bridge::invoke::<AuthStatus, _>("get_auth_status", ProviderArgs { provider: id })
+        .await
+      {
+        Ok(status) => {
+          auth.set(Some(status));
+        }
+        Err(e) => {
+          auth.set(None);
+          error.set(Some(e));
+        }
+      }
+    });
+  };
 
   Effect::new(move |_| {
     if !in_tauri {
       return;
     }
+    tauri_bridge::listen_json::<bool>("teapotx-status", move |on| {
+      running.set(on);
+    });
     spawn_local(async move {
       match tauri_bridge::invoke0::<ServerStatus>("get_server_status").await {
         Ok(status) => running.set(status.running),
         Err(e) => error.set(Some(e)),
       }
+      match tauri_bridge::invoke0::<AppConfigDto>("get_config").await {
+        Ok(cfg) => {
+          let id = if cfg.provider.trim().is_empty() {
+            DEFAULT_PROVIDER.to_string()
+          } else {
+            cfg.provider
+          };
+          provider.set(id.clone());
+          refresh_auth(id);
+        }
+        Err(e) => error.set(Some(e)),
+      }
     });
   });
+
+  let on_provider_change = move |ev: ev::Event| {
+    let id = event_target_value(&ev);
+    if id.is_empty() || id == provider.get_untracked() {
+      return;
+    }
+    if running.get_untracked() || signing_in.get_untracked() {
+      return;
+    }
+    provider.set(id.clone());
+    auth.set(None);
+    error.set(None);
+    if !in_tauri {
+      return;
+    }
+    spawn_local(async move {
+      match tauri_bridge::invoke::<AppConfigDto, _>(
+        "set_provider",
+        ProviderArgs {
+          provider: id.clone(),
+        },
+      )
+      .await
+      {
+        Ok(cfg) => {
+          provider.set(cfg.provider.clone());
+          refresh_auth(cfg.provider);
+        }
+        Err(e) => {
+          error.set(Some(e));
+          refresh_auth(id);
+        }
+      }
+    });
+  };
+
+  let on_sign_in = move |_| {
+    if !in_tauri {
+      error.set(Some(
+        i18n
+          .locale()
+          .get_untracked()
+          .t(Msg::DesktopOnlyServe)
+          .into(),
+      ));
+      return;
+    }
+    if signing_in.get_untracked() || running.get_untracked() {
+      return;
+    }
+    let id = provider.get_untracked();
+    signing_in.set(true);
+    error.set(None);
+    spawn_local(async move {
+      match tauri_bridge::invoke::<AuthStatus, _>(
+        "login_provider",
+        ProviderArgs {
+          provider: id.clone(),
+        },
+      )
+      .await
+      {
+        Ok(status) => {
+          auth.set(Some(status));
+        }
+        Err(e) => {
+          if e != "Sign-in cancelled." {
+            error.set(Some(e));
+          }
+          refresh_auth(id);
+        }
+      }
+      signing_in.set(false);
+    });
+  };
+
+  let on_cancel_sign_in = move |_| {
+    if !in_tauri || !signing_in.get_untracked() {
+      return;
+    }
+    spawn_local(async move {
+      if let Err(e) = tauri_bridge::invoke0::<()>("cancel_login").await {
+        error.set(Some(e));
+      }
+    });
+  };
 
   let on_toggle = Callback::new(move |want_on: bool| {
     if !in_tauri {
@@ -38,7 +172,13 @@ pub fn HomePage() -> impl IntoView {
       ));
       return;
     }
-    if busy.get_untracked() {
+    if busy.get_untracked() || signing_in.get_untracked() {
+      return;
+    }
+    if want_on && !auth.get_untracked().is_some_and(|s| s.authenticated) {
+      error.set(Some(
+        i18n.locale().get_untracked().t(Msg::AuthRequired).into(),
+      ));
       return;
     }
     running.set(want_on);
@@ -65,7 +205,10 @@ pub fn HomePage() -> impl IntoView {
     });
   });
 
-  let switch_disabled = Signal::derive(move || !in_tauri);
+  let authenticated = Signal::derive(move || auth.get().is_some_and(|s| s.authenticated));
+  let switch_disabled =
+    Signal::derive(move || !in_tauri || !authenticated.get() || signing_in.get());
+  let picker_disabled = Signal::derive(move || !in_tauri || running.get() || signing_in.get());
   let serve_aria = Signal::derive(move || i18n.t(Msg::ServeAria).get().to_string());
 
   view! {
@@ -86,6 +229,101 @@ pub fn HomePage() -> impl IntoView {
           <p class="home-blurb">
             {i18n.t(Msg::HomeBlurb)}
           </p>
+        </div>
+
+        <div class="provider-card">
+          <label class="provider-picker" for="home-provider">
+            <span class="provider-picker-label">{i18n.t(Msg::Provider)}</span>
+            <span class="provider-select-wrap">
+              <select
+                id="home-provider"
+                class="provider-select"
+                prop:value=move || provider.get()
+                prop:disabled=move || picker_disabled.get()
+                aria-label=move || i18n.t(Msg::Provider).get()
+                on:change=on_provider_change
+              >
+                {PROVIDERS
+                  .iter()
+                  .map(|(id, label)| {
+                    let id = (*id).to_string();
+                    view! {
+                      <option value=id.clone() selected=move || provider.get() == id>
+                        {*label}
+                      </option>
+                    }
+                  })
+                  .collect_view()}
+              </select>
+            </span>
+          </label>
+
+          <div class="provider-auth">
+            <Show when=move || authenticated.get() && !signing_in.get()>
+              <p class="provider-auth-ok">
+                <span class="status-dot status-dot-on"></span>
+                <span>
+                  {i18n.t(Msg::AuthSignedIn)}
+                  {move || {
+                    auth
+                      .get()
+                      .and_then(|s| s.account)
+                      .filter(|a| !a.is_empty())
+                      .map(|a| format!(" {a}"))
+                      .unwrap_or_default()
+                  }}
+                </span>
+              </p>
+              <Button
+                variant=ButtonVariant::Outline
+                size=ButtonSize::Sm
+                class="provider-auth-btn"
+                on:click=on_sign_in
+                prop:disabled=move || !in_tauri || running.get()
+              >
+                {move || {
+                  let import = provider.get() == "vertex"
+                    || auth.get().is_some_and(|s| s.is_import());
+                  if import {
+                    i18n.locale().get().t(Msg::AuthImport)
+                  } else {
+                    i18n.locale().get().t(Msg::AuthSignInAgain)
+                  }
+                }}
+              </Button>
+            </Show>
+            <Show when=move || signing_in.get()>
+              <p class="provider-auth-wait">{i18n.t(Msg::AuthWaitingBrowser)}</p>
+              <Button
+                variant=ButtonVariant::Outline
+                size=ButtonSize::Sm
+                class="provider-auth-btn"
+                on:click=on_cancel_sign_in
+              >
+                {i18n.t(Msg::AuthCancel)}
+              </Button>
+            </Show>
+            <Show when=move || !authenticated.get() && !signing_in.get()>
+              <p class="provider-auth-hint">{i18n.t(Msg::AuthRequiredHint)}</p>
+              <Button
+                variant=ButtonVariant::Default
+                size=ButtonSize::Sm
+                class="provider-auth-btn"
+                on:click=on_sign_in
+                prop:disabled=move || !in_tauri || running.get()
+              >
+                {move || {
+                  let import = provider.get() == "vertex"
+                    || auth.get().is_some_and(|s| s.is_import());
+                  if import {
+                    i18n.locale().get().t(Msg::AuthImport)
+                  } else {
+                    i18n.locale().get().t(Msg::AuthSignIn)
+                  }
+                }}
+              </Button>
+            </Show>
+          </div>
         </div>
 
         <div
@@ -135,13 +373,17 @@ pub fn HomePage() -> impl IntoView {
             ></span>
             <span>
               {move || {
+                let locale = i18n.locale().get();
+                if !authenticated.get() && !running.get() {
+                  return locale.t(Msg::AuthRequired);
+                }
                 let msg = match (busy.get(), running.get()) {
                   (true, true) => Msg::Starting,
                   (true, false) => Msg::Stopping,
                   (false, true) => Msg::Running,
                   (false, false) => Msg::Stopped,
                 };
-                i18n.locale().get().t(msg)
+                locale.t(msg)
               }}
             </span>
           </p>

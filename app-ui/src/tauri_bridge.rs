@@ -234,6 +234,32 @@ pub struct ServerStatus {
 pub struct AppConfigDto {
   pub listen: String,
   pub api_key: String,
+  #[serde(default = "default_provider")]
+  pub provider: String,
+}
+
+fn default_provider() -> String {
+  "codex".into()
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthStatus {
+  pub provider: String,
+  pub authenticated: bool,
+  pub account: Option<String>,
+  pub auth_method: String,
+}
+
+impl AuthStatus {
+  pub fn is_import(&self) -> bool {
+    self.auth_method == "credential-import"
+  }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProviderArgs {
+  pub provider: String,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]

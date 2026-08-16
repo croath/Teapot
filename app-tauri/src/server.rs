@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tokio::sync::oneshot;
+
+use crate::auth::{self, DEFAULT_PROVIDER};
 
 const MAX_LOG_LINES: usize = 8_000;
 const CONFIG_FILE: &str = "config.toml";
@@ -17,6 +20,7 @@ const CONFIG_FILE: &str = "config.toml";
 pub struct ServerRuntime {
   child: Mutex<Option<CommandChild>>,
   logs: Mutex<VecDeque<String>>,
+  login_cancel: Mutex<Option<oneshot::Sender<()>>>,
 }
 
 impl ServerRuntime {
@@ -24,6 +28,7 @@ impl ServerRuntime {
     Self {
       child: Mutex::new(None),
       logs: Mutex::new(VecDeque::with_capacity(1024)),
+      login_cancel: Mutex::new(None),
     }
   }
 
@@ -33,6 +38,34 @@ impl ServerRuntime {
       logs.pop_front();
     }
     logs.push_back(line);
+  }
+
+  pub(crate) fn log(&self, app: &AppHandle, line: String) {
+    append_and_emit(app, self, line);
+  }
+
+  pub(crate) fn try_begin_login(&self) -> Option<oneshot::Receiver<()>> {
+    let mut slot = self.login_cancel.lock().expect("login mutex");
+    if slot.is_some() {
+      return None;
+    }
+    let (tx, rx) = oneshot::channel();
+    *slot = Some(tx);
+    Some(rx)
+  }
+
+  pub(crate) fn request_cancel_login(&self) -> bool {
+    match self.login_cancel.lock().expect("login mutex").take() {
+      Some(tx) => {
+        let _ = tx.send(());
+        true
+      }
+      None => false,
+    }
+  }
+
+  pub(crate) fn end_login(&self) {
+    let _ = self.login_cancel.lock().expect("login mutex").take();
   }
 
   fn is_running(&self) -> bool {
@@ -52,6 +85,8 @@ pub struct AppConfigDto {
   pub listen: String,
   /// Empty string means no API key (default).
   pub api_key: String,
+  /// Pinned provider id (`codex`, `claude`, `xai`, `antigravity`, `vertex`).
+  pub provider: String,
 }
 
 impl Default for AppConfigDto {
@@ -59,6 +94,7 @@ impl Default for AppConfigDto {
     Self {
       listen: "127.0.0.1:8080".into(),
       api_key: String::new(),
+      provider: DEFAULT_PROVIDER.into(),
     }
   }
 }
@@ -101,7 +137,20 @@ fn read_config_file(path: &PathBuf) -> AppConfigDto {
     .and_then(|v| v.as_str())
     .unwrap_or("")
     .to_string();
-  AppConfigDto { listen, api_key }
+  let provider = value
+    .get("provider")
+    .and_then(|v| v.as_str())
+    .unwrap_or(DEFAULT_PROVIDER)
+    .to_string();
+  AppConfigDto {
+    listen,
+    api_key,
+    provider: normalize_provider(&provider).unwrap_or_else(|_| DEFAULT_PROVIDER.into()),
+  }
+}
+
+fn normalize_provider(name: &str) -> Result<String, String> {
+  Ok(auth::parse_provider(name)?.as_str().to_string())
 }
 
 fn write_config_file(path: &PathBuf, cfg: &AppConfigDto) -> Result<(), String> {
@@ -113,6 +162,7 @@ fn write_config_file(path: &PathBuf, cfg: &AppConfigDto) -> Result<(), String> {
   } else {
     body.push_str(&format!("api_key = {:?}\n", cfg.api_key.trim()));
   }
+  body.push_str(&format!("provider = {:?}\n", cfg.provider));
   body.push_str("include_progress = true\n");
   if let Some(parent) = path.parent() {
     fs::create_dir_all(parent).map_err(|e| format!("create config parent: {e}"))?;
@@ -139,13 +189,31 @@ pub fn get_config(app: AppHandle) -> Result<AppConfigDto, String> {
 }
 
 #[tauri::command]
-pub fn save_config(app: AppHandle, config: AppConfigDto) -> Result<(), String> {
+pub fn save_config(app: AppHandle, mut config: AppConfigDto) -> Result<(), String> {
   if config.listen.trim().is_empty() {
     return Err("listen address must not be empty".into());
   }
+  if config.provider.trim().is_empty() {
+    let existing = read_config_file(&config_path(&app)?);
+    config.provider = existing.provider;
+  }
+  config.provider = normalize_provider(&config.provider)?;
   let path = config_path(&app)?;
   write_config_file(&path, &config)?;
   Ok(())
+}
+
+#[tauri::command]
+pub fn set_provider(app: AppHandle, provider: String) -> Result<AppConfigDto, String> {
+  let running = app.state::<ServerRuntime>().is_running();
+  if running {
+    return Err("stop the server before changing provider".into());
+  }
+  let path = config_path(&app)?;
+  let mut cfg = read_config_file(&path);
+  cfg.provider = normalize_provider(&provider)?;
+  write_config_file(&path, &cfg)?;
+  Ok(cfg)
 }
 
 #[tauri::command]
@@ -185,11 +253,20 @@ pub async fn start_server(app: AppHandle, state: State<'_, ServerRuntime>) -> Re
     write_config_file(&path, &AppConfigDto::default())?;
   }
 
+  let cfg = read_config_file(&path);
+  let provider = normalize_provider(&cfg.provider)?;
+  let auth = auth::status_for(auth::parse_provider(&provider)?)?;
+  if !auth.authenticated {
+    return Err(format!(
+      "not signed in to {provider}; sign in before starting the server"
+    ));
+  }
+
   let path_str = path.display().to_string();
   append_and_emit(
     &app,
     &state,
-    format!("[teapot] starting: teapotx serve --config {path_str}"),
+    format!("[teapot] starting: teapotx serve --config {path_str} -p {provider}"),
   );
 
   let sidecar = app
@@ -198,7 +275,7 @@ pub async fn start_server(app: AppHandle, state: State<'_, ServerRuntime>) -> Re
     .map_err(|e| format!("resolve teapotx sidecar: {e}"))?;
 
   let (mut rx, child) = sidecar
-    .args(["serve", "--config", &path_str])
+    .args(["serve", "--config", &path_str, "-p", &provider])
     .spawn()
     .map_err(|e| format!("spawn teapotx serve: {e}"))?;
 

@@ -1,5 +1,6 @@
 //! Teapot desktop shell: liquid-glass UI host + bundled `teapotx` sidecar.
 
+mod auth;
 mod i18n;
 mod server;
 mod telemetry;
@@ -18,6 +19,7 @@ pub fn run() {
 
   tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
+    .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(prevent_webview_defaults())
     .manage(ServerRuntime::new())
@@ -53,9 +55,13 @@ pub fn run() {
       server::stop_server,
       server::get_config,
       server::save_config,
+      server::set_provider,
       server::get_logs,
       server::clear_logs,
       server::get_app_info,
+      auth::get_auth_status,
+      auth::login_provider,
+      auth::cancel_login,
       updater::check_for_update,
       updater::install_update,
       set_locale,

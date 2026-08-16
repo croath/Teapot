@@ -666,6 +666,78 @@
     @apply mt-1 max-w-[16rem] text-center;
   }
 
+  .provider-card {
+    @apply flex w-[16.5rem] flex-col gap-3 px-5 py-4;
+    border-radius: 20px;
+    border: 1px solid oklch(1 0 0 / 0.1);
+    background: oklch(1 0 0 / 0.05);
+    box-shadow: 0 1px 0 0 oklch(1 0 0 / 0.08) inset;
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  .provider-picker {
+    @apply flex flex-col gap-1.5 text-left;
+  }
+
+  .provider-picker-label {
+    @apply text-[11px] font-medium tracking-wide text-muted-foreground/80;
+  }
+
+  .provider-select-wrap {
+    @apply relative block;
+  }
+
+  .provider-select-wrap::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    top: 50%;
+    right: 0.75rem;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 1.5px solid oklch(0.85 0.02 230);
+    border-bottom: 1.5px solid oklch(0.85 0.02 230);
+    transform: translateY(-70%) rotate(45deg);
+  }
+
+  .provider-select {
+    @apply h-9 w-full appearance-none rounded-md border border-input bg-black/20 px-3 pr-8 text-sm font-medium text-foreground outline-none;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .provider-select:focus {
+    border-color: color-mix(in srgb, #1179ac 55%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, #1179ac 40%, transparent);
+  }
+
+  .provider-select:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  .provider-select option {
+    color: #111;
+  }
+
+  .provider-auth {
+    @apply flex flex-col items-stretch gap-2;
+  }
+
+  .provider-auth-ok {
+    @apply text-muted-foreground flex items-center gap-1.5 text-xs font-medium;
+    color: oklch(0.88 0.04 150);
+    overflow-wrap: anywhere;
+  }
+
+  .provider-auth-hint,
+  .provider-auth-wait {
+    @apply text-muted-foreground text-xs leading-relaxed;
+  }
+
+  .provider-auth-btn {
+    @apply w-full! justify-center;
+  }
+
   /* Home: compact labeled switch */
   .serve-switch {
     @apply flex flex-col items-center gap-2 px-5 py-4;
