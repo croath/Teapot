@@ -83,12 +83,11 @@ impl ClaudeProvider {
     info!(%bound, path = %path, "claude OAuth callback listening");
 
     let server = axum::serve(listener, app);
-    let server_handle = tokio::spawn(async move {
+    let _server = crate::auth::AbortOnDrop(tokio::spawn(async move {
       let _ = server.await;
-    });
+    }));
 
     let outcome = tokio::time::timeout(timeout, rx).await;
-    server_handle.abort();
 
     match outcome {
       Ok(Ok(Ok(res))) => Ok(res),

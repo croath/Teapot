@@ -132,6 +132,7 @@ pub fn SettingsGeneratePage() -> impl IntoView {
   let i18n = use_i18n();
   let listen = RwSignal::new("127.0.0.1:8080".to_string());
   let api_key = RwSignal::new(String::new());
+  let provider = RwSignal::new("codex".to_string());
   let status = RwSignal::new(Option::<Msg>::None);
   let error = RwSignal::new(Option::<String>::None);
   let saving = RwSignal::new(false);
@@ -146,6 +147,9 @@ pub fn SettingsGeneratePage() -> impl IntoView {
         Ok(cfg) => {
           listen.set(cfg.listen);
           api_key.set(cfg.api_key);
+          if !cfg.provider.trim().is_empty() {
+            provider.set(cfg.provider);
+          }
         }
         Err(e) => error.set(Some(e)),
       }
@@ -168,6 +172,7 @@ pub fn SettingsGeneratePage() -> impl IntoView {
     let cfg = AppConfigDto {
       listen: listen.get_untracked(),
       api_key: api_key.get_untracked(),
+      provider: provider.get_untracked(),
     };
     spawn_local(async move {
       match tauri_bridge::invoke::<(), _>("save_config", SaveConfigArgs { config: cfg }).await {

@@ -7,7 +7,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
-use crate::auth::{AuthStore, LoginOptions};
+use crate::auth::{AuthStore, LoginOptions, open_url};
 use crate::error::{AppError, AppResult};
 use crate::providers::{AuthEntry, ProviderKind};
 
@@ -202,7 +202,7 @@ impl XaiProvider {
   pub(super) async fn login_device(
     &self,
     store: &AuthStore,
-    _opts: LoginOptions,
+    opts: LoginOptions,
   ) -> AppResult<AuthEntry> {
     let discovery = self.discover().await?;
     let device = self
@@ -215,9 +215,17 @@ impl XaiProvider {
       .or(device.verification_uri.as_deref())
       .unwrap_or("https://auth.x.ai");
     println!("xAI device login");
-    println!("  Visit: {verify}");
-    if let Some(code) = &device.user_code {
-      println!("  Code:  {code}");
+    if opts.no_browser || !open_url(verify) {
+      println!("  Visit: {verify}");
+      if let Some(code) = &device.user_code {
+        println!("  Code:  {code}");
+      }
+    } else {
+      println!("Opening browser for xAI authentication…");
+      println!("If the browser does not open, visit:\n{verify}");
+      if let Some(code) = &device.user_code {
+        println!("  Code:  {code}");
+      }
     }
     println!("Waiting for authorization…");
 
