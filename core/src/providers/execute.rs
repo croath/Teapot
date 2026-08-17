@@ -10,6 +10,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::error::{AppError, AppResult};
+use crate::models::anthropic::MessagesRequest;
 use crate::models::openai::{
   ChatCompletionRequest, ChatContent, ChatMessage, ResponsesRequest, Usage,
 };
@@ -69,6 +70,49 @@ impl ExecRequest {
       stream: req.stream,
       temperature: req.temperature,
       max_tokens: req.max_output_tokens,
+    }
+  }
+
+  /// Build from an Anthropic Messages create body (top-level `system` + turns).
+  ///
+  /// Content blocks are flattened to text. Image / unknown blocks are dropped;
+  /// tool_use / tool_result / thinking contribute their text so multi-turn
+  /// conversations still have something to send upstream.
+  pub fn from_messages(req: &MessagesRequest) -> Self {
+    let mut messages = Vec::new();
+    if let Some(system) = req.system.as_ref() {
+      let text = system.as_text();
+      if !text.is_empty() {
+        messages.push(ChatMessage {
+          role: "system".into(),
+          content: ChatContent::Text(text),
+          name: None,
+        });
+      }
+    }
+    for msg in &req.messages {
+      let text = msg.content.as_text();
+      if text.is_empty() {
+        continue;
+      }
+      let role = match msg.role.as_str() {
+        "assistant" | "model" => "assistant",
+        "system" | "developer" => "system",
+        _ => "user",
+      };
+      messages.push(ChatMessage {
+        role: role.into(),
+        content: ChatContent::Text(text),
+        name: None,
+      });
+    }
+
+    Self {
+      model: req.model.clone(),
+      messages,
+      stream: req.stream,
+      temperature: req.temperature,
+      max_tokens: Some(req.max_tokens),
     }
   }
 
@@ -342,4 +386,45 @@ pub async fn read_body_checked(
     return Err(upstream_error(provider, status, &text));
   }
   Ok((status, text))
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn from_messages_flattens_system_and_turns() {
+    let req: MessagesRequest = serde_json::from_str(
+      r#"{
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 256,
+        "temperature": 0.2,
+        "system": "You are concise.",
+        "messages": [
+          { "role": "user", "content": "Hello" },
+          { "role": "assistant", "content": "Hi!" },
+          {
+            "role": "user",
+            "content": [
+              { "type": "text", "text": "Again" },
+              { "type": "image", "source": { "type": "url", "url": "https://x" } }
+            ]
+          }
+        ]
+      }"#,
+    )
+    .unwrap();
+
+    let exec = ExecRequest::from_messages(&req);
+    assert_eq!(exec.model, "claude-sonnet-4-6");
+    assert_eq!(exec.max_tokens, Some(256));
+    assert_eq!(exec.temperature, Some(0.2));
+    assert!(!exec.stream);
+    assert_eq!(exec.messages.len(), 4);
+    assert_eq!(exec.messages[0].role, "system");
+    assert_eq!(exec.messages[0].content.as_text(), "You are concise.");
+    assert_eq!(exec.messages[1].role, "user");
+    assert_eq!(exec.messages[2].role, "assistant");
+    assert_eq!(exec.messages[3].content.as_text(), "Again");
+  }
 }
