@@ -5221,7 +5221,7 @@ dependencies = [
 
 [[package]]
 name = "teapot-cli"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5237,7 +5237,7 @@ dependencies = [
 
 [[package]]
 name = "teapot-core"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "axum",
@@ -5267,7 +5267,7 @@ dependencies = [
 
 [[package]]
 name = "teapot-tauri"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "chrono",
  "reqwest",
@@ -5290,7 +5290,7 @@ dependencies = [
 
 [[package]]
 name = "teapot-ui"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "console_error_panic_hook",
  "gloo-timers",

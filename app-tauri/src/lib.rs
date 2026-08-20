@@ -6,10 +6,13 @@ mod server;
 mod telemetry;
 mod updater;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use i18n::{Locale, load_locale, save_locale};
 use server::ServerRuntime;
-use tauri::Emitter;
 use tauri::menu::{MenuBuilder, MenuItem, SubmenuBuilder};
+use tauri::{Emitter, Manager};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tracing_subscriber::EnvFilter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -67,8 +70,51 @@ pub fn run() {
       set_locale,
       get_locale,
     ])
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    .on_window_event(|window, event| {
+      if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        if teapotx_is_running(window.app_handle()) {
+          api.prevent_close();
+          warn_shutdown_teapotx_first(window.app_handle());
+        } else {
+          window.app_handle().exit(0);
+        }
+      }
+    })
+    .build(tauri::generate_context!())
+    .expect("error while building tauri application")
+    .run(|app, event| {
+      if let tauri::RunEvent::ExitRequested { api, .. } = event {
+        if teapotx_is_running(app) {
+          api.prevent_exit();
+          warn_shutdown_teapotx_first(app);
+        }
+      }
+    });
+}
+
+fn teapotx_is_running(app: &tauri::AppHandle) -> bool {
+  app
+    .try_state::<ServerRuntime>()
+    .is_some_and(|state| state.is_running())
+}
+
+fn warn_shutdown_teapotx_first(app: &tauri::AppHandle) {
+  static SHOWING: AtomicBool = AtomicBool::new(false);
+  if SHOWING.swap(true, Ordering::SeqCst) {
+    return;
+  }
+  let copy = load_locale(app).close_guard();
+  let mut builder = app
+    .dialog()
+    .message(copy.message)
+    .title(copy.title)
+    .kind(MessageDialogKind::Warning);
+  if let Some(window) = app.get_webview_window("main") {
+    builder = builder.parent(&window);
+  }
+  builder.show(|_| {
+    SHOWING.store(false, Ordering::SeqCst);
+  });
 }
 
 #[tauri::command]

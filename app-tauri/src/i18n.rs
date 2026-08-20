@@ -51,6 +51,11 @@ pub struct MenuCopy {
   pub help: &'static str,
 }
 
+pub struct CloseGuardCopy {
+  pub title: &'static str,
+  pub message: &'static str,
+}
+
 impl Locale {
   pub fn menu(self) -> MenuCopy {
     match self {
@@ -103,6 +108,31 @@ impl Locale {
         edit: "편집",
         window: "윈도우",
         help: "도움말",
+      },
+    }
+  }
+
+  pub fn close_guard(self) -> CloseGuardCopy {
+    match self {
+      Locale::En => CloseGuardCopy {
+        title: "teapotx is running",
+        message: "You should shut down teapotx first.",
+      },
+      Locale::Ja => CloseGuardCopy {
+        title: "teapotx が実行中です",
+        message: "先に teapotx を停止してください。",
+      },
+      Locale::ZhHans => CloseGuardCopy {
+        title: "teapotx 正在运行",
+        message: "请先关闭 teapotx。",
+      },
+      Locale::ZhHant => CloseGuardCopy {
+        title: "teapotx 正在執行",
+        message: "請先關閉 teapotx。",
+      },
+      Locale::Ko => CloseGuardCopy {
+        title: "teapotx가 실행 중입니다",
+        message: "먼저 teapotx를 중지하십시오.",
       },
     }
   }
