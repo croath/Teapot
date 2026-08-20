@@ -8,7 +8,7 @@ use tracing_subscriber::EnvFilter;
 
 use teapot_core::{
   AuthMethod, AuthStore, Config, LoginOptions, ProviderKind, all_providers, default_config_paths,
-  import_service_account, provider_for, serve,
+  ensure_legacy_migrated, import_service_account, provider_for, serve,
 };
 
 #[derive(Debug, Parser)]
@@ -159,6 +159,10 @@ impl CliProvider {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
   init_tracing();
+  match ensure_legacy_migrated() {
+    Ok(dir) => tracing::debug!(dest = %dir.display(), "data local dir"),
+    Err(error) => tracing::warn!(%error, "could not resolve data local dir"),
+  }
 
   let cli = Cli::parse();
   match cli.command {

@@ -11,6 +11,7 @@ use teapot_core::{
   provider_for,
 };
 
+use crate::paths;
 use crate::server::ServerRuntime;
 
 pub const DEFAULT_PROVIDER: &str = "codex";
@@ -51,8 +52,14 @@ pub fn auth_method_id(method: AuthMethod) -> &'static str {
   }
 }
 
-pub fn status_for(kind: ProviderKind) -> Result<AuthStatus, String> {
-  let store = AuthStore::local().map_err(|e| e.to_string())?;
+fn open_auth_store(app: &AppHandle) -> Result<AuthStore, String> {
+  let store = AuthStore::new(paths::auth_dir(app)?);
+  store.ensure_dir().map_err(|e| e.to_string())?;
+  Ok(store)
+}
+
+pub fn status_for(app: &AppHandle, kind: ProviderKind) -> Result<AuthStatus, String> {
+  let store = open_auth_store(app)?;
   let provider = provider_for(kind);
   let entries = provider.load_auth(&store).map_err(|e| e.to_string())?;
   let first = entries.into_iter().next();
@@ -71,8 +78,8 @@ pub fn status_for(kind: ProviderKind) -> Result<AuthStatus, String> {
 }
 
 #[tauri::command]
-pub fn get_auth_status(provider: String) -> Result<AuthStatus, String> {
-  status_for(parse_provider(&provider)?)
+pub fn get_auth_status(app: AppHandle, provider: String) -> Result<AuthStatus, String> {
+  status_for(&app, parse_provider(&provider)?)
 }
 
 #[tauri::command]
@@ -122,7 +129,7 @@ pub fn cancel_login(app: AppHandle, state: State<'_, ServerRuntime>) -> Result<(
 }
 
 async fn run_login(app: &AppHandle, kind: ProviderKind) -> Result<AuthStatus, String> {
-  let store = AuthStore::local().map_err(|e| e.to_string())?;
+  let store = open_auth_store(app)?;
   let provider = provider_for(kind);
 
   let entry = match provider.auth_method() {
@@ -148,7 +155,7 @@ async fn run_login(app: &AppHandle, kind: ProviderKind) -> Result<AuthStatus, St
   // and status pick the account that just signed in.
   keep_only_account(&*provider, &store, &entry.account_key())?;
 
-  status_for(kind)
+  status_for(app, kind)
 }
 
 fn keep_only_account(

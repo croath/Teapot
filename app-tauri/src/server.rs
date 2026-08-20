@@ -12,9 +12,10 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tokio::sync::oneshot;
 
 use crate::auth::{self, DEFAULT_PROVIDER};
+use crate::paths;
+use teapot_core::paths::{AUTH_DIR_ENV, DATA_DIR_ENV, MODELS_DIR_ENV};
 
 const MAX_LOG_LINES: usize = 8_000;
-const CONFIG_FILE: &str = "config.toml";
 
 /// Shared runtime for the sidecar server process.
 pub struct ServerRuntime {
@@ -106,17 +107,8 @@ pub struct AppInfo {
   pub version: String,
 }
 
-fn config_dir(app: &AppHandle) -> Result<PathBuf, String> {
-  let dir = app
-    .path()
-    .app_config_dir()
-    .map_err(|e| format!("resolve app config dir: {e}"))?;
-  fs::create_dir_all(&dir).map_err(|e| format!("create config dir: {e}"))?;
-  Ok(dir)
-}
-
 fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
-  Ok(config_dir(app)?.join(CONFIG_FILE))
+  paths::config_path(app)
 }
 
 fn read_config_file(path: &PathBuf) -> AppConfigDto {
@@ -255,18 +247,25 @@ pub async fn start_server(app: AppHandle, state: State<'_, ServerRuntime>) -> Re
 
   let cfg = read_config_file(&path);
   let provider = normalize_provider(&cfg.provider)?;
-  let auth = auth::status_for(auth::parse_provider(&provider)?)?;
+  let auth = auth::status_for(&app, auth::parse_provider(&provider)?)?;
   if !auth.authenticated {
     return Err(format!(
       "not signed in to {provider}; sign in before starting the server"
     ));
   }
 
+  let data_dir = paths::data_local_dir(&app)?;
+  let auth_dir = paths::auth_dir(&app)?;
+  let models_dir = paths::models_dir(&app)?;
+  fs::create_dir_all(&data_dir).map_err(|e| format!("create data local dir: {e}"))?;
   let path_str = path.display().to_string();
   append_and_emit(
     &app,
     &state,
-    format!("[teapot] starting: teapotx serve --config {path_str} -p {provider}"),
+    format!(
+      "[teapot] starting: teapotx serve --config {path_str} -p {provider} ({DATA_DIR_ENV}={})",
+      data_dir.display()
+    ),
   );
 
   let sidecar = app
@@ -276,6 +275,9 @@ pub async fn start_server(app: AppHandle, state: State<'_, ServerRuntime>) -> Re
 
   let (mut rx, child) = sidecar
     .args(["serve", "--config", &path_str, "-p", &provider])
+    .env(DATA_DIR_ENV, &data_dir)
+    .env(AUTH_DIR_ENV, &auth_dir)
+    .env(MODELS_DIR_ENV, &models_dir)
     .spawn()
     .map_err(|e| format!("spawn teapotx serve: {e}"))?;
 

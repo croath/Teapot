@@ -12,7 +12,7 @@
 //! `StoredAuth` struct and serializes it unchanged).
 //!
 //! ```text
-//! {data_local}/teapot/auth/
+//! {data_local}/auth/
 //!   codex.json        # account map of Codex StoredAuth
 //!   claude.json       # account map of Claude StoredAuth
 //!   …

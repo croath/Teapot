@@ -82,7 +82,7 @@ Models list lives **on each compatible surface** (not a standalone Teapot route)
 Both read the **pinned provider's in-memory catalog** (seeded at startup from
 that provider's own disk file, or an upstream fetch, refreshed periodically).
 
-**One file per provider** under `{data_local}/teapot/models/`:
+**One file per provider** under `{data_local}/models/`:
 
 ```text
 models/
@@ -143,7 +143,7 @@ bakes them in at compile time (`core/build.rs`) from
 `core/.env`, then the workspace `.env`. See `.env.example`. A missing value
 fails the build. Do not add unprefixed `CLIENT_ID` / `CLIENT_SECRET` aliases.
 
-**One file per provider** under `{data_local}/teapot/auth/`:
+**One file per provider** under `{data_local}/auth/`:
 
 ```text
 auth/
@@ -175,8 +175,19 @@ let rows: Vec<(String, CodexAuth)> = store.load_all(ProviderKind::Codex)?;
 let one: ClaudeAuth = store.load_account(ProviderKind::Claude, account)?;
 ```
 
-Legacy single-file `{data_local}/teapot/auth.json` is still read once and
+Legacy single-file `{data_local}/auth.json` is still read once and
 migrated into the per-provider files.
+
+Data-local root (CLI and desktop share this):
+
+`{local_data_dir}/{identifier}` with `identifier` = `com.cdxtheme.teapot`
+(Tauri `AppHandle.path().app_local_data_dir()`; CLI uses the same path via
+`teapot_core::paths::data_local_dir()`).
+
+On first use, if that tree has no config/auth/models yet, files are copied from
+the legacy `directories::ProjectDirs::from("dev", "teapot", "teapot")` location,
+then the old ProjectDirs directories are deleted.
+Override with `TEAPOT_DATA_DIR` / `--auth-dir` / `TEAPOT_AUTH_DIR`.
 
 | Provider | Flow |
 |----------|------|

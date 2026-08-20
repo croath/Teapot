@@ -2,7 +2,7 @@
 //!
 //! Layout:
 //! ```text
-//! {data_local}/teapot/models/
+//! {data_local}/models/
 //!   codex.json
 //!   claude.json
 //!   xai.json
@@ -38,12 +38,7 @@ use tracing::info;
 use crate::error::{AppError, AppResult};
 use crate::providers::ProviderKind;
 
-/// Default models directory: `{data_local_dir}/teapot/models/`.
-pub fn default_models_dir() -> AppResult<PathBuf> {
-  let proj = directories::ProjectDirs::from("dev", "teapot", "teapot")
-    .ok_or_else(|| AppError::Internal("could not resolve local app data directory".into()))?;
-  Ok(proj.data_local_dir().join("models"))
-}
+pub use crate::paths::default_models_dir;
 
 /// Per-provider models cache store.
 #[derive(Debug, Clone)]
@@ -68,6 +63,7 @@ impl ModelsStore {
 
   /// Open the default models directory under local app data.
   pub fn local() -> AppResult<Self> {
+    let _ = crate::paths::ensure_legacy_migrated();
     let store = Self::new(default_models_dir()?);
     store.ensure_dir()?;
     Ok(store)
