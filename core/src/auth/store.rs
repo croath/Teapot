@@ -3,7 +3,7 @@
 //!
 //! Layout:
 //! ```text
-//! {data_local}/teapot/auth/
+//! {data_local}/auth/
 //!   codex.json
 //!   claude.json
 //!   xai.json
@@ -42,12 +42,7 @@ use tracing::{info, warn};
 use crate::error::{AppError, AppResult};
 use crate::providers::ProviderKind;
 
-/// Default auth directory: `{data_local_dir}/teapot/auth/`.
-pub fn default_auth_dir() -> AppResult<PathBuf> {
-  let proj = directories::ProjectDirs::from("dev", "teapot", "teapot")
-    .ok_or_else(|| AppError::Internal("could not resolve local app data directory".into()))?;
-  Ok(proj.data_local_dir().join("auth"))
-}
+pub use crate::paths::default_auth_dir;
 
 /// Path of the credentials file for one provider under the default auth dir.
 pub fn default_auth_path() -> AppResult<PathBuf> {
@@ -113,6 +108,7 @@ impl AuthStore {
 
   /// Open the default auth directory under local app data.
   pub fn local() -> AppResult<Self> {
+    let _ = crate::paths::ensure_legacy_migrated();
     let store = Self::new(default_auth_dir()?);
     store.ensure_dir()?;
     Ok(store)

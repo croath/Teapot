@@ -8,6 +8,7 @@ pub mod auth;
 pub mod config;
 pub mod error;
 pub mod models;
+pub mod paths;
 pub mod providers;
 pub mod stream;
 
@@ -23,6 +24,11 @@ pub use config::{Config, default_config_paths};
 pub use error::{
   AnthropicErrorBody, AnthropicErrorDetail, AppError, AppResult, ClaudeError, ClaudeResult,
   OpenAiError, OpenAiErrorBody, OpenAiErrorDetail, OpenAiResult,
+};
+pub use paths::{
+  APP_IDENTIFIER, DATA_DIR_ENV, MigrateReport, copy_file_if_missing, data_local_dir,
+  default_config_file, ensure_legacy_migrated, migrate_from_dirs, migrate_legacy_project_data,
+  project_dirs, remove_legacy_dirs,
 };
 pub use providers::{
   AntigravityProvider, AuthEntry, ClaudeProvider, CodexProvider, ExecRequest, ExecResponse,

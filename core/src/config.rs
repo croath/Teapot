@@ -70,8 +70,17 @@ pub fn default_config_paths() -> Vec<PathBuf> {
   let mut paths = Vec::new();
   paths.push(PathBuf::from("teapot.toml"));
   paths.push(PathBuf::from("config.toml"));
-  if let Some(proj) = directories::ProjectDirs::from("dev", "teapot", "teapot") {
-    paths.push(proj.config_dir().join("config.toml"));
+  if let Ok(file) = crate::paths::default_config_file() {
+    if !paths.contains(&file) {
+      paths.push(file);
+    }
+  }
+  // Linux: ProjectDirs config_dir (`~/.config/teapot`) differs from data_local.
+  if let Some(proj) = crate::paths::project_dirs() {
+    let cfg = proj.config_dir().join("config.toml");
+    if !paths.contains(&cfg) {
+      paths.push(cfg);
+    }
   }
   paths
 }

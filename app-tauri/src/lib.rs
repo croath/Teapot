@@ -2,6 +2,7 @@
 
 mod auth;
 mod i18n;
+mod paths;
 mod server;
 mod telemetry;
 mod updater;
@@ -28,6 +29,7 @@ pub fn run() {
     .manage(ServerRuntime::new())
     .manage(updater::PendingUpdate::new())
     .setup(|app| {
+      paths::ensure_migrated(app.handle());
       let locale = load_locale(app.handle());
       let menu = build_app_menu(app.handle(), locale)?;
       app.set_menu(menu)?;
