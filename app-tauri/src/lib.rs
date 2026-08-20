@@ -6,10 +6,13 @@ mod server;
 mod telemetry;
 mod updater;
 
-use i18n::{Locale, load_locale, save_locale};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use i18n::{Locale, Msg, load_locale, save_locale};
 use server::ServerRuntime;
-use tauri::Emitter;
 use tauri::menu::{MenuBuilder, MenuItem, SubmenuBuilder};
+use tauri::{Emitter, Manager};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tracing_subscriber::EnvFilter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -67,8 +70,51 @@ pub fn run() {
       set_locale,
       get_locale,
     ])
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    .on_window_event(|window, event| {
+      if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        if teapotx_is_running(window.app_handle()) {
+          api.prevent_close();
+          warn_shutdown_teapotx_first(window.app_handle());
+        } else {
+          window.app_handle().exit(0);
+        }
+      }
+    })
+    .build(tauri::generate_context!())
+    .expect("error while building tauri application")
+    .run(|app, event| {
+      if let tauri::RunEvent::ExitRequested { api, .. } = event {
+        if teapotx_is_running(app) {
+          api.prevent_exit();
+          warn_shutdown_teapotx_first(app);
+        }
+      }
+    });
+}
+
+fn teapotx_is_running(app: &tauri::AppHandle) -> bool {
+  app
+    .try_state::<ServerRuntime>()
+    .is_some_and(|state| state.is_running())
+}
+
+fn warn_shutdown_teapotx_first(app: &tauri::AppHandle) {
+  static SHOWING: AtomicBool = AtomicBool::new(false);
+  if SHOWING.swap(true, Ordering::SeqCst) {
+    return;
+  }
+  let locale = load_locale(app);
+  let mut builder = app
+    .dialog()
+    .message(locale.t(Msg::CloseGuardMessage))
+    .title(locale.t(Msg::CloseGuardTitle))
+    .kind(MessageDialogKind::Warning);
+  if let Some(window) = app.get_webview_window("main") {
+    builder = builder.parent(&window);
+  }
+  builder.show(|_| {
+    SHOWING.store(false, Ordering::SeqCst);
+  });
 }
 
 #[tauri::command]
@@ -117,13 +163,24 @@ fn build_app_menu(
   locale: Locale,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
   let pkg_name = app.package_info().name.clone();
-  let copy = locale.menu();
+  let t = |msg| locale.t(msg);
 
-  let settings_item = MenuItem::with_id(app, "settings", copy.settings, true, Some("CmdOrCtrl+,"))?;
-  let about_item = MenuItem::with_id(app, "about", copy.about, true, None::<&str>)?;
-  let debug_item = MenuItem::with_id(app, "debug", copy.debug, true, None::<&str>)?;
-  let check_updates_item =
-    MenuItem::with_id(app, "check-updates", copy.check_updates, true, None::<&str>)?;
+  let settings_item = MenuItem::with_id(
+    app,
+    "settings",
+    t(Msg::MenuSettings),
+    true,
+    Some("CmdOrCtrl+,"),
+  )?;
+  let about_item = MenuItem::with_id(app, "about", t(Msg::MenuAbout), true, None::<&str>)?;
+  let debug_item = MenuItem::with_id(app, "debug", t(Msg::MenuDebug), true, None::<&str>)?;
+  let check_updates_item = MenuItem::with_id(
+    app,
+    "check-updates",
+    t(Msg::MenuCheckUpdates),
+    true,
+    None::<&str>,
+  )?;
 
   #[cfg(target_os = "macos")]
   let app_submenu = SubmenuBuilder::new(app, &pkg_name)
@@ -141,13 +198,13 @@ fn build_app_menu(
     .build()?;
 
   #[cfg(not(target_os = "macos"))]
-  let file_submenu = SubmenuBuilder::new(app, copy.file)
+  let file_submenu = SubmenuBuilder::new(app, t(Msg::MenuFile))
     .item(&settings_item)
     .separator()
     .quit()
     .build()?;
 
-  let edit_submenu = SubmenuBuilder::new(app, copy.edit)
+  let edit_submenu = SubmenuBuilder::new(app, t(Msg::MenuEdit))
     .undo()
     .redo()
     .separator()
@@ -157,7 +214,7 @@ fn build_app_menu(
     .select_all()
     .build()?;
 
-  let window_submenu = SubmenuBuilder::new(app, copy.window)
+  let window_submenu = SubmenuBuilder::new(app, t(Msg::MenuWindow))
     .minimize()
     .maximize()
     .separator()
@@ -167,13 +224,13 @@ fn build_app_menu(
   let help_submenu = {
     #[cfg(target_os = "macos")]
     {
-      SubmenuBuilder::new(app, copy.help)
+      SubmenuBuilder::new(app, t(Msg::MenuHelp))
         .item(&debug_item)
         .build()?
     }
     #[cfg(not(target_os = "macos"))]
     {
-      SubmenuBuilder::new(app, copy.help)
+      SubmenuBuilder::new(app, t(Msg::MenuHelp))
         .item(&about_item)
         .item(&check_updates_item)
         .separator()

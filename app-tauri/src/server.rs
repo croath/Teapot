@@ -68,7 +68,7 @@ impl ServerRuntime {
     let _ = self.login_cancel.lock().expect("login mutex").take();
   }
 
-  fn is_running(&self) -> bool {
+  pub(crate) fn is_running(&self) -> bool {
     self.child.lock().expect("child mutex").is_some()
   }
 }
