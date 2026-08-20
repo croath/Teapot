@@ -1,4 +1,4 @@
-//! Native menu copy for the five UI locales.
+//! Native-shell copy keyed by [`Msg`]. Each locale is an exhaustive match.
 
 use std::fs;
 use std::path::PathBuf;
@@ -37,103 +37,106 @@ impl Locale {
       Locale::Ko => "ko",
     }
   }
-}
 
-pub struct MenuCopy {
-  pub settings: &'static str,
-  pub about: &'static str,
-  pub debug: &'static str,
-  pub check_updates: &'static str,
-  #[cfg_attr(target_os = "macos", allow(dead_code))]
-  pub file: &'static str,
-  pub edit: &'static str,
-  pub window: &'static str,
-  pub help: &'static str,
-}
-
-pub struct CloseGuardCopy {
-  pub title: &'static str,
-  pub message: &'static str,
-}
-
-impl Locale {
-  pub fn menu(self) -> MenuCopy {
+  pub fn t(self, msg: Msg) -> &'static str {
     match self {
-      Locale::En => MenuCopy {
-        settings: "Settings…",
-        about: "About Teapot",
-        debug: "Debug Logs",
-        check_updates: "Check for Updates…",
-        file: "File",
-        edit: "Edit",
-        window: "Window",
-        help: "Help",
-      },
-      Locale::Ja => MenuCopy {
-        settings: "設定…",
-        about: "Teapotについて",
-        debug: "デバッグログ",
-        check_updates: "アップデートを確認…",
-        file: "ファイル",
-        edit: "編集",
-        window: "ウィンドウ",
-        help: "ヘルプ",
-      },
-      Locale::ZhHans => MenuCopy {
-        settings: "设置…",
-        about: "关于 Teapot",
-        debug: "调试日志",
-        check_updates: "检查更新…",
-        file: "文件",
-        edit: "编辑",
-        window: "窗口",
-        help: "帮助",
-      },
-      Locale::ZhHant => MenuCopy {
-        settings: "設定…",
-        about: "關於 Teapot",
-        debug: "除錯記錄",
-        check_updates: "檢查更新…",
-        file: "檔案",
-        edit: "編輯",
-        window: "視窗",
-        help: "輔助說明",
-      },
-      Locale::Ko => MenuCopy {
-        settings: "설정…",
-        about: "Teapot 정보",
-        debug: "디버그 로그",
-        check_updates: "업데이트 확인…",
-        file: "파일",
-        edit: "편집",
-        window: "윈도우",
-        help: "도움말",
-      },
+      Locale::En => msg.en(),
+      Locale::Ja => msg.ja(),
+      Locale::ZhHans => msg.zh_hans(),
+      Locale::ZhHant => msg.zh_hant(),
+      Locale::Ko => msg.ko(),
+    }
+  }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Msg {
+  MenuSettings,
+  MenuAbout,
+  MenuDebug,
+  MenuCheckUpdates,
+  #[cfg_attr(target_os = "macos", allow(dead_code))]
+  MenuFile,
+  MenuEdit,
+  MenuWindow,
+  MenuHelp,
+  CloseGuardTitle,
+  CloseGuardMessage,
+}
+
+impl Msg {
+  fn en(self) -> &'static str {
+    match self {
+      Msg::MenuSettings => "Settings…",
+      Msg::MenuAbout => "About Teapot",
+      Msg::MenuDebug => "Debug Logs",
+      Msg::MenuCheckUpdates => "Check for Updates…",
+      Msg::MenuFile => "File",
+      Msg::MenuEdit => "Edit",
+      Msg::MenuWindow => "Window",
+      Msg::MenuHelp => "Help",
+      Msg::CloseGuardTitle => "teapotx is running",
+      Msg::CloseGuardMessage => "You should shut down teapotx first.",
     }
   }
 
-  pub fn close_guard(self) -> CloseGuardCopy {
+  fn ja(self) -> &'static str {
     match self {
-      Locale::En => CloseGuardCopy {
-        title: "teapotx is running",
-        message: "You should shut down teapotx first.",
-      },
-      Locale::Ja => CloseGuardCopy {
-        title: "teapotx が実行中です",
-        message: "先に teapotx を停止してください。",
-      },
-      Locale::ZhHans => CloseGuardCopy {
-        title: "teapotx 正在运行",
-        message: "请先关闭 teapotx。",
-      },
-      Locale::ZhHant => CloseGuardCopy {
-        title: "teapotx 正在執行",
-        message: "請先關閉 teapotx。",
-      },
-      Locale::Ko => CloseGuardCopy {
-        title: "teapotx가 실행 중입니다",
-        message: "먼저 teapotx를 중지하십시오.",
-      },
+      Msg::MenuSettings => "設定…",
+      Msg::MenuAbout => "Teapotについて",
+      Msg::MenuDebug => "デバッグログ",
+      Msg::MenuCheckUpdates => "アップデートを確認…",
+      Msg::MenuFile => "ファイル",
+      Msg::MenuEdit => "編集",
+      Msg::MenuWindow => "ウィンドウ",
+      Msg::MenuHelp => "ヘルプ",
+      Msg::CloseGuardTitle => "teapotx が実行中です",
+      Msg::CloseGuardMessage => "先に teapotx を停止してください。",
+    }
+  }
+
+  fn zh_hans(self) -> &'static str {
+    match self {
+      Msg::MenuSettings => "设置…",
+      Msg::MenuAbout => "关于 Teapot",
+      Msg::MenuDebug => "调试日志",
+      Msg::MenuCheckUpdates => "检查更新…",
+      Msg::MenuFile => "文件",
+      Msg::MenuEdit => "编辑",
+      Msg::MenuWindow => "窗口",
+      Msg::MenuHelp => "帮助",
+      Msg::CloseGuardTitle => "teapotx 正在运行",
+      Msg::CloseGuardMessage => "请先关闭 teapotx。",
+    }
+  }
+
+  fn zh_hant(self) -> &'static str {
+    match self {
+      Msg::MenuSettings => "設定…",
+      Msg::MenuAbout => "關於 Teapot",
+      Msg::MenuDebug => "除錯記錄",
+      Msg::MenuCheckUpdates => "檢查更新…",
+      Msg::MenuFile => "檔案",
+      Msg::MenuEdit => "編輯",
+      Msg::MenuWindow => "視窗",
+      Msg::MenuHelp => "輔助說明",
+      Msg::CloseGuardTitle => "teapotx 正在執行",
+      Msg::CloseGuardMessage => "請先關閉 teapotx。",
+    }
+  }
+
+  fn ko(self) -> &'static str {
+    match self {
+      Msg::MenuSettings => "설정…",
+      Msg::MenuAbout => "Teapot 정보",
+      Msg::MenuDebug => "디버그 로그",
+      Msg::MenuCheckUpdates => "업데이트 확인…",
+      Msg::MenuFile => "파일",
+      Msg::MenuEdit => "편집",
+      Msg::MenuWindow => "윈도우",
+      Msg::MenuHelp => "도움말",
+      Msg::CloseGuardTitle => "teapotx가 실행 중입니다",
+      Msg::CloseGuardMessage => "먼저 teapotx를 중지하십시오.",
     }
   }
 }

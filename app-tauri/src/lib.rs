@@ -8,7 +8,7 @@ mod updater;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use i18n::{Locale, load_locale, save_locale};
+use i18n::{Locale, Msg, load_locale, save_locale};
 use server::ServerRuntime;
 use tauri::menu::{MenuBuilder, MenuItem, SubmenuBuilder};
 use tauri::{Emitter, Manager};
@@ -103,11 +103,11 @@ fn warn_shutdown_teapotx_first(app: &tauri::AppHandle) {
   if SHOWING.swap(true, Ordering::SeqCst) {
     return;
   }
-  let copy = load_locale(app).close_guard();
+  let locale = load_locale(app);
   let mut builder = app
     .dialog()
-    .message(copy.message)
-    .title(copy.title)
+    .message(locale.t(Msg::CloseGuardMessage))
+    .title(locale.t(Msg::CloseGuardTitle))
     .kind(MessageDialogKind::Warning);
   if let Some(window) = app.get_webview_window("main") {
     builder = builder.parent(&window);
@@ -163,13 +163,24 @@ fn build_app_menu(
   locale: Locale,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
   let pkg_name = app.package_info().name.clone();
-  let copy = locale.menu();
+  let t = |msg| locale.t(msg);
 
-  let settings_item = MenuItem::with_id(app, "settings", copy.settings, true, Some("CmdOrCtrl+,"))?;
-  let about_item = MenuItem::with_id(app, "about", copy.about, true, None::<&str>)?;
-  let debug_item = MenuItem::with_id(app, "debug", copy.debug, true, None::<&str>)?;
-  let check_updates_item =
-    MenuItem::with_id(app, "check-updates", copy.check_updates, true, None::<&str>)?;
+  let settings_item = MenuItem::with_id(
+    app,
+    "settings",
+    t(Msg::MenuSettings),
+    true,
+    Some("CmdOrCtrl+,"),
+  )?;
+  let about_item = MenuItem::with_id(app, "about", t(Msg::MenuAbout), true, None::<&str>)?;
+  let debug_item = MenuItem::with_id(app, "debug", t(Msg::MenuDebug), true, None::<&str>)?;
+  let check_updates_item = MenuItem::with_id(
+    app,
+    "check-updates",
+    t(Msg::MenuCheckUpdates),
+    true,
+    None::<&str>,
+  )?;
 
   #[cfg(target_os = "macos")]
   let app_submenu = SubmenuBuilder::new(app, &pkg_name)
@@ -187,13 +198,13 @@ fn build_app_menu(
     .build()?;
 
   #[cfg(not(target_os = "macos"))]
-  let file_submenu = SubmenuBuilder::new(app, copy.file)
+  let file_submenu = SubmenuBuilder::new(app, t(Msg::MenuFile))
     .item(&settings_item)
     .separator()
     .quit()
     .build()?;
 
-  let edit_submenu = SubmenuBuilder::new(app, copy.edit)
+  let edit_submenu = SubmenuBuilder::new(app, t(Msg::MenuEdit))
     .undo()
     .redo()
     .separator()
@@ -203,7 +214,7 @@ fn build_app_menu(
     .select_all()
     .build()?;
 
-  let window_submenu = SubmenuBuilder::new(app, copy.window)
+  let window_submenu = SubmenuBuilder::new(app, t(Msg::MenuWindow))
     .minimize()
     .maximize()
     .separator()
@@ -213,13 +224,13 @@ fn build_app_menu(
   let help_submenu = {
     #[cfg(target_os = "macos")]
     {
-      SubmenuBuilder::new(app, copy.help)
+      SubmenuBuilder::new(app, t(Msg::MenuHelp))
         .item(&debug_item)
         .build()?
     }
     #[cfg(not(target_os = "macos"))]
     {
-      SubmenuBuilder::new(app, copy.help)
+      SubmenuBuilder::new(app, t(Msg::MenuHelp))
         .item(&about_item)
         .item(&check_updates_item)
         .separator()
