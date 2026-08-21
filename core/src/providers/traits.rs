@@ -291,6 +291,75 @@ pub trait ProviderExecutor: Send + Sync {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// PATH string that includes GUI-app extras (Homebrew, Cargo, npm, nvm).
+///
+/// macOS apps launched from Finder / Dock / IDE often miss the login-shell PATH,
+/// so `codex` installed via brew/npm is invisible unless we add these dirs.
+pub fn augmented_path() -> std::ffi::OsString {
+  use std::collections::HashSet;
+  use std::env;
+  use std::ffi::OsString;
+
+  let mut dirs: Vec<PathBuf> = Vec::new();
+  let mut seen: HashSet<PathBuf> = HashSet::new();
+  let mut push = |p: PathBuf| {
+    if p.as_os_str().is_empty() {
+      return;
+    }
+    if seen.insert(p.clone()) {
+      dirs.push(p);
+    }
+  };
+
+  if let Some(path) = env::var_os("PATH") {
+    for p in env::split_paths(&path) {
+      push(p);
+    }
+  }
+
+  #[cfg(unix)]
+  {
+    if let Ok(text) = std::fs::read_to_string("/etc/paths") {
+      for line in text.lines() {
+        let line = line.trim();
+        if !line.is_empty() && !line.starts_with('#') {
+          push(PathBuf::from(line));
+        }
+      }
+    }
+    if let Ok(rd) = std::fs::read_dir("/etc/paths.d") {
+      for entry in rd.flatten() {
+        if let Ok(text) = std::fs::read_to_string(entry.path()) {
+          for line in text.lines() {
+            let line = line.trim();
+            if !line.is_empty() && !line.starts_with('#') {
+              push(PathBuf::from(line));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  push(PathBuf::from("/opt/homebrew/bin"));
+  push(PathBuf::from("/usr/local/bin"));
+  if let Some(home) = env::var_os("HOME").map(PathBuf::from) {
+    push(home.join(".local/bin"));
+    push(home.join(".cargo/bin"));
+    push(home.join("bin"));
+    push(home.join(".bun/bin"));
+    push(home.join("Library/pnpm"));
+    let nvm = home.join(".nvm/versions/node");
+    if let Ok(rd) = std::fs::read_dir(&nvm) {
+      for entry in rd.flatten() {
+        push(entry.path().join("bin"));
+      }
+    }
+  }
+
+  env::join_paths(dirs).unwrap_or_else(|_| OsString::from("/usr/bin:/bin"))
+}
+
 /// Resolve the provider binary path if the command is available.
 pub fn resolve_binary(command: &str) -> Option<String> {
   let path = Path::new(command);
@@ -300,7 +369,15 @@ pub fn resolve_binary(command: &str) -> Option<String> {
     }
     return None;
   }
-  which::which(command).ok().map(|p| p.display().to_string())
+  let extra = augmented_path();
+  let cwd = std::env::current_dir().ok();
+  which::which_in(
+    command,
+    Some(extra),
+    cwd.unwrap_or_else(|| PathBuf::from(".")),
+  )
+  .ok()
+  .map(|p| p.display().to_string())
 }
 
 /// Apply `{prompt}`, `{system}`, and `{model}` placeholders in argv templates.

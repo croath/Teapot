@@ -13,6 +13,7 @@ use crate::error::AppResult;
 use crate::providers::antigravity::AntigravityProvider;
 use crate::providers::claude::ClaudeProvider;
 use crate::providers::codex::CodexProvider;
+use crate::providers::codex_cli::CodexCliProvider;
 use crate::providers::compact::{ExecCompactRequest, ExecCompactResponse};
 use crate::providers::execute::{ExecRequest, ExecResponse, ExecStream};
 use crate::providers::model_info::{ModelInfo, ProviderModel};
@@ -25,6 +26,7 @@ use crate::providers::{ProviderAuth, ProviderKind};
 #[derive(Debug, Clone)]
 pub enum PinnedProvider {
   Codex(CodexProvider),
+  CodexCli(CodexCliProvider),
   Claude(ClaudeProvider),
   Xai(XaiProvider),
   Antigravity(AntigravityProvider),
@@ -36,6 +38,7 @@ impl PinnedProvider {
   pub fn from_kind(kind: ProviderKind) -> Self {
     match kind {
       ProviderKind::Codex => Self::Codex(CodexProvider::new()),
+      ProviderKind::CodexCli => Self::CodexCli(CodexCliProvider::new()),
       ProviderKind::Claude => Self::Claude(ClaudeProvider::new()),
       ProviderKind::Xai => Self::Xai(XaiProvider::new()),
       ProviderKind::Antigravity => Self::Antigravity(AntigravityProvider::new()),
@@ -46,6 +49,7 @@ impl PinnedProvider {
   pub fn kind(&self) -> ProviderKind {
     match self {
       Self::Codex(_) => ProviderKind::Codex,
+      Self::CodexCli(_) => ProviderKind::CodexCli,
       Self::Claude(_) => ProviderKind::Claude,
       Self::Xai(_) => ProviderKind::Xai,
       Self::Antigravity(_) => ProviderKind::Antigravity,
@@ -57,6 +61,7 @@ impl PinnedProvider {
   pub fn as_auth(&self) -> &dyn ProviderAuth {
     match self {
       Self::Codex(p) => p,
+      Self::CodexCli(p) => p,
       Self::Claude(p) => p,
       Self::Xai(p) => p,
       Self::Antigravity(p) => p,
@@ -73,6 +78,7 @@ impl PinnedProvider {
   pub async fn session_needs_refresh(&self) -> bool {
     match self {
       Self::Codex(p) => p.session_needs_refresh().await,
+      Self::CodexCli(p) => p.session_needs_refresh().await,
       Self::Claude(p) => p.session_needs_refresh().await,
       Self::Xai(p) => p.session_needs_refresh().await,
       Self::Antigravity(p) => p.session_needs_refresh().await,
@@ -82,8 +88,13 @@ impl PinnedProvider {
 
   /// Load / mint credentials into this provider's native in-memory session.
   pub async fn load_session(&self, store: &AuthStore) -> AppResult<()> {
+    if let Self::CodexCli(p) = self {
+      p.ensure_session().await?;
+      return Ok(());
+    }
     let entry = self.ensure_auth(store).await?;
     match self {
+      Self::CodexCli(_) => {}
       Self::Codex(p) => {
         p.set_session(entry.into_codex()?).await;
       }
@@ -117,6 +128,7 @@ impl PinnedProvider {
   pub async fn execute(&self, req: &ExecRequest) -> AppResult<ExecResponse> {
     match self {
       Self::Codex(p) => p.execute(req).await,
+      Self::CodexCli(p) => p.execute(req).await,
       Self::Claude(p) => p.execute(req).await,
       Self::Xai(p) => p.execute(req).await,
       Self::Antigravity(p) => p.execute(req).await,
@@ -128,6 +140,7 @@ impl PinnedProvider {
   pub async fn execute_stream(&self, req: &ExecRequest) -> AppResult<ExecStream> {
     match self {
       Self::Codex(p) => p.execute_stream(req).await,
+      Self::CodexCli(p) => p.execute_stream(req).await,
       Self::Claude(p) => p.execute_stream(req).await,
       Self::Xai(p) => p.execute_stream(req).await,
       Self::Antigravity(p) => p.execute_stream(req).await,
@@ -139,6 +152,7 @@ impl PinnedProvider {
   pub async fn execute_compact(&self, req: &ExecCompactRequest) -> AppResult<ExecCompactResponse> {
     match self {
       Self::Codex(p) => p.execute_compact(req).await,
+      Self::CodexCli(p) => p.execute_compact(req).await,
       Self::Claude(p) => p.execute_compact(req).await,
       Self::Xai(p) => p.execute_compact(req).await,
       Self::Antigravity(p) => p.execute_compact(req).await,
@@ -150,6 +164,7 @@ impl PinnedProvider {
   pub async fn execute_compact_stream(&self, req: &ExecCompactRequest) -> AppResult<ExecStream> {
     match self {
       Self::Codex(p) => p.execute_compact_stream(req).await,
+      Self::CodexCli(p) => p.execute_compact_stream(req).await,
       Self::Claude(p) => p.execute_compact_stream(req).await,
       Self::Xai(p) => p.execute_compact_stream(req).await,
       Self::Antigravity(p) => p.execute_compact_stream(req).await,
@@ -161,6 +176,7 @@ impl PinnedProvider {
   pub async fn fetch_models(&self) -> AppResult<NativeModelCatalog> {
     Ok(match self {
       Self::Codex(p) => NativeModelCatalog::Codex(p.models().await?),
+      Self::CodexCli(p) => NativeModelCatalog::CodexCli(p.models().await?),
       Self::Claude(p) => NativeModelCatalog::Claude(p.models().await?),
       Self::Xai(p) => NativeModelCatalog::Xai(p.models().await?),
       Self::Antigravity(p) => NativeModelCatalog::Antigravity(p.models().await?),
@@ -177,6 +193,7 @@ impl PinnedProvider {
   pub async fn model(&self, id: &str) -> AppResult<Option<ModelInfo>> {
     Ok(match self {
       Self::Codex(p) => p.model(id).await?.map(|m| m.to_model_info()),
+      Self::CodexCli(p) => p.model(id).await?.map(|m| m.to_model_info()),
       Self::Claude(p) => p.model(id).await?.map(|m| m.to_model_info()),
       Self::Xai(p) => p.model(id).await?.map(|m| m.to_model_info()),
       Self::Antigravity(p) => p.model(id).await?.map(|m| m.to_model_info()),

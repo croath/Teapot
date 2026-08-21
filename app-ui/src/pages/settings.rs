@@ -132,7 +132,7 @@ pub fn SettingsGeneratePage() -> impl IntoView {
   let i18n = use_i18n();
   let listen = RwSignal::new("127.0.0.1:8080".to_string());
   let api_key = RwSignal::new(String::new());
-  let provider = RwSignal::new("codex".to_string());
+  let provider = RwSignal::new("codex-cli".to_string());
   let status = RwSignal::new(Option::<Msg>::None);
   let error = RwSignal::new(Option::<String>::None);
   let saving = RwSignal::new(false);

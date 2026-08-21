@@ -6,17 +6,32 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Switch};
 use crate::i18n::{Msg, use_i18n};
-use crate::tauri_bridge::{self, AppConfigDto, AuthStatus, ProviderArgs, ServerStatus};
+use crate::tauri_bridge::{
+  self, AppConfigDto, AuthStatus, ProviderArgs, ProviderInfo, ServerStatus,
+};
 
-const DEFAULT_PROVIDER: &str = "codex";
+const DEFAULT_PROVIDER: &str = "codex-cli";
 
-const PROVIDERS: &[(&str, &str)] = &[
-  ("codex", "Codex"),
-  ("claude", "Claude"),
-  ("xai", "xAI"),
-  ("antigravity", "Antigravity"),
-  ("vertex", "Vertex"),
-];
+fn fallback_providers() -> Vec<ProviderInfo> {
+  [
+    ("codex-cli", "Codex CLI", false),
+    ("xai", "xAI", true),
+    ("antigravity", "Antigravity", true),
+    ("vertex", "Vertex", true),
+  ]
+  .into_iter()
+  .map(|(id, label, supports_auth)| ProviderInfo {
+    id: id.into(),
+    label: label.into(),
+    description: String::new(),
+    command: String::new(),
+    installed: true,
+    supports_auth,
+    requires_local_cli: false,
+    install_hint: None,
+  })
+  .collect()
+}
 
 #[component]
 pub fn HomePage() -> impl IntoView {
@@ -25,6 +40,7 @@ pub fn HomePage() -> impl IntoView {
   let busy = RwSignal::new(false);
   let signing_in = RwSignal::new(false);
   let provider = RwSignal::new(DEFAULT_PROVIDER.to_string());
+  let providers = RwSignal::new(fallback_providers());
   let auth = RwSignal::new(Option::<AuthStatus>::None);
   let error = RwSignal::new(Option::<String>::None);
   let in_tauri = tauri_bridge::is_tauri();
@@ -59,6 +75,10 @@ pub fn HomePage() -> impl IntoView {
       match tauri_bridge::invoke0::<ServerStatus>("get_server_status").await {
         Ok(status) => running.set(status.running),
         Err(e) => error.set(Some(e)),
+      }
+      match tauri_bridge::invoke0::<Vec<ProviderInfo>>("list_providers").await {
+        Ok(list) if !list.is_empty() => providers.set(list),
+        _ => {}
       }
       match tauri_bridge::invoke0::<AppConfigDto>("get_config").await {
         Ok(cfg) => {
@@ -175,11 +195,23 @@ pub fn HomePage() -> impl IntoView {
     if busy.get_untracked() || signing_in.get_untracked() {
       return;
     }
-    if want_on && !auth.get_untracked().is_some_and(|s| s.authenticated) {
-      error.set(Some(
-        i18n.locale().get_untracked().t(Msg::AuthRequired).into(),
-      ));
+    let status = auth.get_untracked();
+    if want_on && status.as_ref().is_some_and(|s| !s.installed) {
+      let hint = status
+        .as_ref()
+        .and_then(|s| s.install_hint.clone())
+        .unwrap_or_else(|| i18n.locale().get_untracked().t(Msg::CliMissing).into());
+      error.set(Some(hint));
       return;
+    }
+    if want_on && !status.as_ref().is_some_and(|s| s.authenticated) {
+      let needs_sign_in = status.as_ref().map(|s| s.supports_auth).unwrap_or(true);
+      if needs_sign_in {
+        error.set(Some(
+          i18n.locale().get_untracked().t(Msg::AuthRequired).into(),
+        ));
+        return;
+      }
     }
     running.set(want_on);
     busy.set(true);
@@ -206,8 +238,12 @@ pub fn HomePage() -> impl IntoView {
   });
 
   let authenticated = Signal::derive(move || auth.get().is_some_and(|s| s.authenticated));
-  let switch_disabled =
-    Signal::derive(move || !in_tauri || !authenticated.get() || signing_in.get());
+  let supports_auth = Signal::derive(move || auth.get().is_some_and(|s| s.supports_auth));
+  let cli_ready = Signal::derive(move || auth.get().is_none_or(|s| s.installed));
+  let switch_disabled = Signal::derive(move || {
+    let needs_auth = supports_auth.get() && !authenticated.get();
+    !in_tauri || needs_auth || signing_in.get() || !cli_ready.get()
+  });
   let picker_disabled = Signal::derive(move || !in_tauri || running.get() || signing_in.get());
   let serve_aria = Signal::derive(move || i18n.t(Msg::ServeAria).get().to_string());
 
@@ -243,23 +279,60 @@ pub fn HomePage() -> impl IntoView {
                 aria-label=move || i18n.t(Msg::Provider).get()
                 on:change=on_provider_change
               >
-                {PROVIDERS
-                  .iter()
-                  .map(|(id, label)| {
-                    let id = (*id).to_string();
-                    view! {
-                      <option value=id.clone() selected=move || provider.get() == id>
-                        {*label}
-                      </option>
-                    }
-                  })
-                  .collect_view()}
+                {move || {
+                  providers
+                    .get()
+                    .into_iter()
+                    .map(|p| {
+                      let id = p.id.clone();
+                      let label = if p.installed {
+                        p.label.clone()
+                      } else {
+                        format!("{} — not installed", p.label)
+                      };
+                      view! {
+                        <option value=id.clone() selected=move || provider.get() == id>
+                          {label}
+                        </option>
+                      }
+                    })
+                    .collect_view()
+                }}
               </select>
             </span>
           </label>
 
           <div class="provider-auth">
-            <Show when=move || authenticated.get() && !signing_in.get()>
+            <Show when=move || {
+              auth.get().is_some_and(|s| s.requires_local_cli && !s.installed)
+            }>
+              <p class="provider-auth-hint">
+                {move || {
+                  auth
+                    .get()
+                    .and_then(|s| s.install_hint)
+                    .filter(|h| !h.is_empty())
+                    .unwrap_or_else(|| {
+                      if provider.get() == "codex-cli" {
+                        i18n.locale().get().t(Msg::CodexCliInstallHint).to_string()
+                      } else {
+                        i18n.locale().get().t(Msg::CliMissing).to_string()
+                      }
+                    })
+                }}
+              </p>
+            </Show>
+            <Show when=move || {
+              auth.get().is_some_and(|s| s.installed)
+                && !supports_auth.get()
+                && !signing_in.get()
+            }>
+              <p class="provider-auth-ok">
+                <span class="status-dot status-dot-on"></span>
+                <span>{i18n.t(Msg::AuthNotRequiredHint)}</span>
+              </p>
+            </Show>
+            <Show when=move || supports_auth.get() && authenticated.get() && !signing_in.get()>
               <p class="provider-auth-ok">
                 <span class="status-dot status-dot-on"></span>
                 <span>
@@ -292,7 +365,7 @@ pub fn HomePage() -> impl IntoView {
                 }}
               </Button>
             </Show>
-            <Show when=move || signing_in.get()>
+            <Show when=move || supports_auth.get() && signing_in.get()>
               <p class="provider-auth-wait">{i18n.t(Msg::AuthWaitingBrowser)}</p>
               <Button
                 variant=ButtonVariant::Outline
@@ -303,7 +376,9 @@ pub fn HomePage() -> impl IntoView {
                 {i18n.t(Msg::AuthCancel)}
               </Button>
             </Show>
-            <Show when=move || !authenticated.get() && !signing_in.get()>
+            <Show when=move || {
+              supports_auth.get() && !authenticated.get() && !signing_in.get()
+            }>
               <p class="provider-auth-hint">{i18n.t(Msg::AuthRequiredHint)}</p>
               <Button
                 variant=ButtonVariant::Default
@@ -374,7 +449,10 @@ pub fn HomePage() -> impl IntoView {
             <span>
               {move || {
                 let locale = i18n.locale().get();
-                if !authenticated.get() && !running.get() {
+                if !cli_ready.get() && !running.get() {
+                  return locale.t(Msg::CliMissing);
+                }
+                if supports_auth.get() && !authenticated.get() && !running.get() {
                   return locale.t(Msg::AuthRequired);
                 }
                 let msg = match (busy.get(), running.get()) {

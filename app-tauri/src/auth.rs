@@ -7,14 +7,14 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 use teapot_core::{
-  AuthMethod, AuthStore, LoginOptions, ProviderAuth, ProviderKind, import_service_account,
-  provider_for,
+  AuthMethod, AuthStore, LoginOptions, ProviderAuth, ProviderKind, all_providers,
+  import_service_account, provider_for,
 };
 
 use crate::paths;
 use crate::server::ServerRuntime;
 
-pub const DEFAULT_PROVIDER: &str = "codex";
+pub const DEFAULT_PROVIDER: &str = ProviderKind::DEFAULT.as_str();
 
 struct LoginGuard<'a>(&'a ServerRuntime);
 
@@ -31,6 +31,24 @@ pub struct AuthStatus {
   pub authenticated: bool,
   pub account: Option<String>,
   pub auth_method: String,
+  pub supports_auth: bool,
+  pub installed: bool,
+  pub command: String,
+  pub requires_local_cli: bool,
+  pub install_hint: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderInfoDto {
+  pub id: String,
+  pub label: String,
+  pub description: String,
+  pub command: String,
+  pub installed: bool,
+  pub supports_auth: bool,
+  pub requires_local_cli: bool,
+  pub install_hint: Option<String>,
 }
 
 pub fn parse_provider(name: &str) -> Result<ProviderKind, String> {
@@ -40,7 +58,9 @@ pub fn parse_provider(name: &str) -> Result<ProviderKind, String> {
   } else {
     name
   };
-  ProviderKind::parse(name).map_err(|e| e.to_string())
+  ProviderKind::parse(name)
+    .and_then(ProviderKind::require_offered)
+    .map_err(|e| e.to_string())
 }
 
 pub fn auth_method_id(method: AuthMethod) -> &'static str {
@@ -63,9 +83,12 @@ pub fn status_for(app: &AppHandle, kind: ProviderKind) -> Result<AuthStatus, Str
   let provider = provider_for(kind);
   let entries = provider.load_auth(&store).map_err(|e| e.to_string())?;
   let first = entries.into_iter().next();
+  let supports_auth = provider.supports_auth();
+  let requires_local_cli = kind.requires_local_cli();
+  let installed = !requires_local_cli || provider.is_installed();
   Ok(AuthStatus {
     provider: kind.as_str().to_string(),
-    authenticated: first.is_some(),
+    authenticated: !supports_auth || first.is_some(),
     account: first.as_ref().map(|entry| {
       entry
         .email()
@@ -74,7 +97,42 @@ pub fn status_for(app: &AppHandle, kind: ProviderKind) -> Result<AuthStatus, Str
         .to_string()
     }),
     auth_method: auth_method_id(provider.auth_method()).into(),
+    supports_auth,
+    installed,
+    command: provider.command().to_string(),
+    requires_local_cli,
+    install_hint: if requires_local_cli && !installed {
+      kind.install_hint().map(str::to_string)
+    } else {
+      None
+    },
   })
+}
+
+#[tauri::command]
+pub fn list_providers() -> Vec<ProviderInfoDto> {
+  all_providers()
+    .into_iter()
+    .map(|provider| {
+      let kind = provider.kind();
+      let requires_local_cli = kind.requires_local_cli();
+      let installed = !requires_local_cli || provider.is_installed();
+      ProviderInfoDto {
+        id: kind.as_str().to_string(),
+        label: kind.display_name().to_string(),
+        description: provider.description().to_string(),
+        command: provider.command().to_string(),
+        installed,
+        supports_auth: provider.supports_auth(),
+        requires_local_cli,
+        install_hint: if requires_local_cli && !installed {
+          kind.install_hint().map(str::to_string)
+        } else {
+          None
+        },
+      }
+    })
+    .collect()
 }
 
 #[tauri::command]

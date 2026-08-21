@@ -4,7 +4,7 @@ members = ["core", "cli", "app-tauri", "app-ui"]
 default-members = ["cli", "core"]
 
 [workspace.package]
-version = "0.1.6"
+version = "0.1.7"
 edition = "2024"
 license = "MIT"
 authors = ["Teapot contributors"]

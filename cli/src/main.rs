@@ -28,7 +28,7 @@ enum Commands {
   Serve {
     /// Provider to pin for this server process (required unless set in config)
     #[arg(short = 'p', long = "provider", env = "TEAPOT_PROVIDER")]
-    provider: Option<String>,
+    provider: Option<CliProvider>,
 
     /// Path to TOML config file
     #[arg(short, long, env = "TEAPOT_CONFIG")]
@@ -134,11 +134,11 @@ enum AuthCommands {
   },
 }
 
-/// CLI provider selection (maps 1:1 to [`ProviderKind`]).
+/// CLI provider selection (offered kinds only; `codex` / `claude` stay compiled).
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum CliProvider {
-  Codex,
-  Claude,
+  #[value(name = "codex-cli")]
+  CodexCli,
   Xai,
   Antigravity,
   Vertex,
@@ -147,8 +147,7 @@ enum CliProvider {
 impl CliProvider {
   fn kind(self) -> ProviderKind {
     match self {
-      Self::Codex => ProviderKind::Codex,
-      Self::Claude => ProviderKind::Claude,
+      Self::CodexCli => ProviderKind::CodexCli,
       Self::Xai => ProviderKind::Xai,
       Self::Antigravity => ProviderKind::Antigravity,
       Self::Vertex => ProviderKind::Vertex,
@@ -180,12 +179,17 @@ async fn main() -> anyhow::Result<()> {
         cfg.api_key = Some(k);
       }
       if let Some(p) = provider {
-        cfg.set_provider(p);
+        cfg.set_provider(p.kind().as_str());
       }
       if cfg.provider_name().is_none() {
         anyhow::bail!(
           "provider is required; use `teapotx serve -p <provider>` or set config.provider"
         );
+      }
+      if let Some(name) = cfg.provider_name() {
+        ProviderKind::parse(name)
+          .and_then(ProviderKind::require_offered)
+          .map_err(|e| anyhow::anyhow!("{e}"))?;
       }
       tracing::info!(provider = ?cfg.provider_name(), "starting server");
       serve(cfg).await.context("server exited with error")?;
@@ -235,7 +239,7 @@ async fn run_auth(cmd: AuthCommands) -> anyhow::Result<()> {
     AuthCommands::Path { auth_dir } => {
       let store = open_store(auth_dir)?;
       println!("auth dir: {}", store.path().display());
-      for kind in ProviderKind::ALL {
+      for kind in ProviderKind::OFFERED {
         let p = store.provider_path(*kind);
         let mark = if p.is_file() { "*" } else { " " };
         println!("  {mark} {}", p.display());

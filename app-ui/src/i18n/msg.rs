@@ -23,6 +23,9 @@ pub enum Msg {
   AuthCancel,
   AuthRequired,
   AuthRequiredHint,
+  AuthNotRequiredHint,
+  CliMissing,
+  CodexCliInstallHint,
   PageNotFound,
   OpeningDebug,
   OpeningAbout,
@@ -100,6 +103,11 @@ impl Msg {
       Msg::AuthCancel => "Cancel",
       Msg::AuthRequired => "Sign in to start the server",
       Msg::AuthRequiredHint => "This provider is not signed in.",
+      Msg::AuthNotRequiredHint => "Uses the local CLI login on this machine.",
+      Msg::CliMissing => "This provider needs a local CLI that is not installed.",
+      Msg::CodexCliInstallHint => {
+        "Install Codex CLI, then restart Teapot. macOS: brew install --cask codex · or npm install -g @openai/codex"
+      }
       Msg::PageNotFound => "Page not found.",
       Msg::OpeningDebug => "Opening Debug…",
       Msg::OpeningAbout => "Opening About…",
@@ -169,6 +177,11 @@ impl Msg {
       Msg::AuthCancel => "キャンセル",
       Msg::AuthRequired => "サーバーを開始するにはサインインしてください",
       Msg::AuthRequiredHint => "このプロバイダーはサインインしていません。",
+      Msg::AuthNotRequiredHint => "このマシンのローカル CLI ログインを使います。",
+      Msg::CliMissing => "このプロバイダーに必要なローカル CLI がインストールされていません。",
+      Msg::CodexCliInstallHint => {
+        "Codex CLI をインストールしてから Teapot を再起動してください。macOS: brew install --cask codex · または npm install -g @openai/codex"
+      }
       Msg::PageNotFound => "ページが見つかりません。",
       Msg::OpeningDebug => "デバッグを開いています…",
       Msg::OpeningAbout => "情報を開いています…",
@@ -238,6 +251,11 @@ impl Msg {
       Msg::AuthCancel => "取消",
       Msg::AuthRequired => "请先登录再启动服务器",
       Msg::AuthRequiredHint => "此提供商尚未登录。",
+      Msg::AuthNotRequiredHint => "使用本机已登录的 CLI 凭据。",
+      Msg::CliMissing => "此提供商需要的本地 CLI 尚未安装。",
+      Msg::CodexCliInstallHint => {
+        "请先安装 Codex CLI，然后重启 Teapot。macOS：brew install --cask codex · 或 npm install -g @openai/codex"
+      }
       Msg::PageNotFound => "找不到页面。",
       Msg::OpeningDebug => "正在打开调试…",
       Msg::OpeningAbout => "正在打开关于…",
@@ -303,6 +321,11 @@ impl Msg {
       Msg::AuthCancel => "取消",
       Msg::AuthRequired => "請先登入再啟動伺服器",
       Msg::AuthRequiredHint => "此供應商尚未登入。",
+      Msg::AuthNotRequiredHint => "使用本機已登入的 CLI 憑證。",
+      Msg::CliMissing => "此供應商需要的本機 CLI 尚未安裝。",
+      Msg::CodexCliInstallHint => {
+        "請先安裝 Codex CLI，然後重新啟動 Teapot。macOS：brew install --cask codex · 或 npm install -g @openai/codex"
+      }
       Msg::PageNotFound => "找不到頁面。",
       Msg::OpeningDebug => "正在開啟除錯…",
       Msg::OpeningAbout => "正在開啟關於…",
@@ -368,6 +391,11 @@ impl Msg {
       Msg::AuthCancel => "취소",
       Msg::AuthRequired => "서버를 시작하려면 로그인하세요",
       Msg::AuthRequiredHint => "이 제공자는 로그인되어 있지 않습니다.",
+      Msg::AuthNotRequiredHint => "이 기기의 로컬 CLI 로그인을 사용합니다.",
+      Msg::CliMissing => "이 제공자에 필요한 로컬 CLI가 설치되어 있지 않습니다.",
+      Msg::CodexCliInstallHint => {
+        "Codex CLI를 설치한 다음 Teapot을 다시 시작하세요. macOS: brew install --cask codex · 또는 npm install -g @openai/codex"
+      }
       Msg::PageNotFound => "페이지를 찾을 수 없습니다.",
       Msg::OpeningDebug => "디버그를 여는 중…",
       Msg::OpeningAbout => "정보를 여는 중…",
@@ -438,6 +466,9 @@ mod tests {
     Msg::AuthCancel,
     Msg::AuthRequired,
     Msg::AuthRequiredHint,
+    Msg::AuthNotRequiredHint,
+    Msg::CliMissing,
+    Msg::CodexCliInstallHint,
     Msg::PageNotFound,
     Msg::OpeningDebug,
     Msg::OpeningAbout,
