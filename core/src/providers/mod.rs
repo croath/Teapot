@@ -7,6 +7,7 @@ pub mod antigravity;
 pub mod auth_entry;
 pub mod claude;
 pub mod codex;
+pub mod codex_cli;
 pub mod compact;
 pub mod execute;
 pub mod kind;
@@ -23,6 +24,7 @@ pub use antigravity::{AntigravityProvider, StoredAuth as AntigravityAuth};
 pub use auth_entry::AuthEntry;
 pub use claude::{ClaudeProvider, StoredAuth as ClaudeAuth};
 pub use codex::{CodexProvider, StoredAuth as CodexAuth};
+pub use codex_cli::{CodexCliModel, CodexCliProvider};
 pub use compact::{ExecCompactRequest, ExecCompactResponse};
 pub use execute::{ExecRequest, ExecResponse, ExecStream, ExecStreamEvent};
 pub use kind::ProviderKind;
@@ -33,7 +35,7 @@ pub use pinned::{PinnedProvider, pinned_provider};
 pub use runtime::ProviderRuntime;
 pub use traits::{
   PromptRequest, Provider, ProviderEvent, ProviderExecutor, ProviderSession, SpawnSpec,
-  StdoutCodec, expand_args, flatten_messages, resolve_binary, stdin_prompt,
+  StdoutCodec, augmented_path, expand_args, flatten_messages, resolve_binary, stdin_prompt,
 };
 pub use vertex::VertexSession;
 pub use vertex::{
@@ -44,9 +46,17 @@ pub use xai::{StoredAuth as XaiAuth, XaiProvider};
 
 use std::sync::Arc;
 
-/// All first-party providers.
+/// Providers offered in CLI and the desktop UI.
+///
+/// Hidden backends (`codex`, `claude`) remain in [`ProviderKind::ALL`] and
+/// [`provider_for`].
 pub fn all_providers() -> Vec<Arc<dyn ProviderAuth>> {
-  ProviderKind::ALL
+  offered_providers()
+}
+
+/// Same as [`all_providers`]: kinds listed in CLI pickers and the UI.
+pub fn offered_providers() -> Vec<Arc<dyn ProviderAuth>> {
+  ProviderKind::OFFERED
     .iter()
     .copied()
     .map(provider_for)
@@ -57,6 +67,7 @@ pub fn all_providers() -> Vec<Arc<dyn ProviderAuth>> {
 pub fn provider_for(kind: ProviderKind) -> Arc<dyn ProviderAuth> {
   match kind {
     ProviderKind::Codex => Arc::new(CodexProvider::new()),
+    ProviderKind::CodexCli => Arc::new(CodexCliProvider::new()),
     ProviderKind::Claude => Arc::new(ClaudeProvider::new()),
     ProviderKind::Xai => Arc::new(XaiProvider::new()),
     ProviderKind::Antigravity => Arc::new(AntigravityProvider::new()),

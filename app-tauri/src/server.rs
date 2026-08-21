@@ -86,7 +86,7 @@ pub struct AppConfigDto {
   pub listen: String,
   /// Empty string means no API key (default).
   pub api_key: String,
-  /// Pinned provider id (`codex`, `claude`, `xai`, `antigravity`, `vertex`).
+  /// Pinned provider id (`codex-cli`, `xai`, `antigravity`, `vertex`).
   pub provider: String,
 }
 
@@ -247,8 +247,16 @@ pub async fn start_server(app: AppHandle, state: State<'_, ServerRuntime>) -> Re
 
   let cfg = read_config_file(&path);
   let provider = normalize_provider(&cfg.provider)?;
-  let auth = auth::status_for(&app, auth::parse_provider(&provider)?)?;
-  if !auth.authenticated {
+  let kind = auth::parse_provider(&provider)?;
+  let auth = auth::status_for(&app, kind)?;
+  if !auth.installed {
+    return Err(
+      auth
+        .install_hint
+        .unwrap_or_else(|| format!("{provider} needs `{}` on PATH", auth.command)),
+    );
+  }
+  if auth.supports_auth && !auth.authenticated {
     return Err(format!(
       "not signed in to {provider}; sign in before starting the server"
     ));
@@ -273,11 +281,13 @@ pub async fn start_server(app: AppHandle, state: State<'_, ServerRuntime>) -> Re
     .sidecar("teapotx")
     .map_err(|e| format!("resolve teapotx sidecar: {e}"))?;
 
+  let path_env = teapot_core::augmented_path();
   let (mut rx, child) = sidecar
     .args(["serve", "--config", &path_str, "-p", &provider])
     .env(DATA_DIR_ENV, &data_dir)
     .env(AUTH_DIR_ENV, &auth_dir)
     .env(MODELS_DIR_ENV, &models_dir)
+    .env("PATH", path_env)
     .spawn()
     .map_err(|e| format!("spawn teapotx serve: {e}"))?;
 

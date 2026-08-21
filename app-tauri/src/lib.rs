@@ -65,6 +65,7 @@ pub fn run() {
       server::clear_logs,
       server::get_app_info,
       auth::get_auth_status,
+      auth::list_providers,
       auth::login_provider,
       auth::cancel_login,
       updater::check_for_update,

@@ -44,10 +44,12 @@ This repository is **Teapot**: turn local provider CLIs into OpenAI- and Anthrop
    in **`AppState.provider`** (and in `ProviderRuntime`), then:
    load auth from `auth/{provider}.json` → refresh access token into **memory** →
    load models (disk cache, else upstream via the same provider) into memory + local store.
+   Providers with `AuthMethod::None` (`codex-cli`) skip the Teapot auth file and
+   session; they use the local CLI login (`codex login`) instead.
 3. Credentials are **provider-owned** in memory (`StoredAuth` or `VertexSession`),
    not a shared `LiveCredentials` bag. Background tasks refresh that session near
    expiry and re-fetch models periodically. `execute` / models only read the
-   provider's own session.
+   provider's own session (or spawn `codex app-server` for `codex-cli`).
 4. **Chat Completions** checks the request `model` against the provider's cached
    models list (error if missing; no auto-adapt), then calls
    `state.provider.execute(…)` (uses that provider's native session).
@@ -55,8 +57,11 @@ This repository is **Teapot**: turn local provider CLIs into OpenAI- and Anthrop
    owned by the runtime for that pinned provider.
 6. Optional CLI path remains: `SpawnSpec` → process spawn → stream **stdout**.
 
-**Providers:** `codex`, `claude`, `xai`, `antigravity`, `vertex` under
+**Providers:** `codex`, `codex-cli`, `claude`, `xai`, `antigravity`, `vertex` under
 `core/src/providers/`. Each implements `Provider` (spawn + **auth** + **execute** + **models**).
+CLI and the desktop UI only **offer** `codex-cli`, `xai`, `antigravity`, and `vertex`.
+`codex` and `claude` stay compiled (`ProviderKind::ALL` / `PinnedProvider`) but are
+not listed or selectable.
 
 ### API prefixes (compatible surfaces)
 
@@ -87,6 +92,7 @@ that provider's own disk file, or an upstream fetch, refreshed periodically).
 ```text
 models/
   codex.json         # { updated_at, models: [CodexModel, …] }
+  codex-cli.json     # { updated_at, models: [CodexCliModel, …] }
   claude.json        # { updated_at, models: [ClaudeModel, …] }
   …
 ```
@@ -123,7 +129,8 @@ Each builtin lives in its own directory under `core/src/providers/<name>/`:
 | `execute.rs` | HTTP `execute` (struct methods only) |
 | `models.rs` | HTTP `models` / `model` from upstream (no hard-coded catalog) |
 
-Built-ins: `codex`, `claude`, `xai` (Grok CLI), `antigravity` (`agy`), `vertex`.
+Built-ins: `codex` (hidden from CLI/UI), `codex-cli` (`codex app-server` JSON-RPC),
+`claude` (hidden from CLI/UI), `xai` (Grok CLI), `antigravity` (`agy`), `vertex`.
 
 Argv templates may use `{prompt}`, `{system}`, and `{model}` where a provider expands them in code.
 
@@ -191,20 +198,20 @@ Override with `TEAPOT_DATA_DIR` / `--auth-dir` / `TEAPOT_AUTH_DIR`.
 
 | Provider | Flow |
 |----------|------|
-| `codex` | Browser OAuth + PKCE (OpenAI) |
-| `claude` | Browser OAuth + PKCE (Anthropic) |
+| `codex` | Browser OAuth + PKCE (OpenAI); compiled, not offered in CLI/UI |
+| `codex-cli` | None in Teapot; uses local `codex login` / `~/.codex` via `codex app-server` |
+| `claude` | Browser OAuth + PKCE (Anthropic); compiled, not offered in CLI/UI |
 | `xai` | Device-code OAuth |
 | `antigravity` | Browser OAuth (Google); client id/secret from `ANTIGRAVITY_CLIENT_*` at build |
 | `vertex` | Import service-account JSON |
 
 ```bash
-cargo run -p teapot-cli -- auth login codex
 cargo run -p teapot-cli -- auth login xai
 cargo run -p teapot-cli -- auth login vertex -c /path/to/sa.json
 cargo run -p teapot-cli -- auth list
 cargo run -p teapot-cli -- auth status
-cargo run -p teapot-cli -- auth refresh codex
-cargo run -p teapot-cli -- auth logout codex
+cargo run -p teapot-cli -- auth refresh xai
+cargo run -p teapot-cli -- auth logout xai
 cargo run -p teapot-cli -- auth path
 ```
 
@@ -216,14 +223,14 @@ Override store dir with `--auth-dir` / `TEAPOT_AUTH_DIR`.
 # Run API server
 cargo run -p teapot-cli -- serve
 
-# Optional provider pin
-cargo run -p teapot-cli -- serve -p codex
+# Optional provider pin (offered: codex-cli, xai, antigravity, vertex)
+cargo run -p teapot-cli -- serve -p codex-cli
 
 # List providers
 cargo run -p teapot-cli -- providers
 
 # Provider auth (TOML under local app data)
-cargo run -p teapot-cli -- auth login codex
+cargo run -p teapot-cli -- auth login xai
 cargo run -p teapot-cli -- auth list
 
 # Print default TOML config

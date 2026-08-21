@@ -5,6 +5,7 @@
 //! ```text
 //! {data_local}/auth/
 //!   codex.json
+//!   codex-cli.json   # unused: this provider has AuthMethod::None
 //!   claude.json
 //!   xai.json
 //!   antigravity.json

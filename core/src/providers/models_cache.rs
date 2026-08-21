@@ -15,6 +15,7 @@ use crate::providers::ProviderKind;
 use crate::providers::antigravity::AntigravityModel;
 use crate::providers::claude::ClaudeModel;
 use crate::providers::codex::CodexModel;
+use crate::providers::codex_cli::CodexCliModel;
 use crate::providers::model_info::{ModelInfo, find_model_info, to_model_infos};
 use crate::providers::models_store::ModelsStore;
 use crate::providers::pinned::PinnedProvider;
@@ -25,6 +26,7 @@ use crate::providers::xai::XaiModel;
 #[derive(Debug, Clone)]
 pub enum NativeModelCatalog {
   Codex(Vec<CodexModel>),
+  CodexCli(Vec<CodexCliModel>),
   Claude(Vec<ClaudeModel>),
   Xai(Vec<XaiModel>),
   Antigravity(Vec<AntigravityModel>),
@@ -35,6 +37,7 @@ impl NativeModelCatalog {
   pub fn kind(&self) -> ProviderKind {
     match self {
       Self::Codex(_) => ProviderKind::Codex,
+      Self::CodexCli(_) => ProviderKind::CodexCli,
       Self::Claude(_) => ProviderKind::Claude,
       Self::Xai(_) => ProviderKind::Xai,
       Self::Antigravity(_) => ProviderKind::Antigravity,
@@ -45,6 +48,7 @@ impl NativeModelCatalog {
   pub fn is_empty(&self) -> bool {
     match self {
       Self::Codex(v) => v.is_empty(),
+      Self::CodexCli(v) => v.is_empty(),
       Self::Claude(v) => v.is_empty(),
       Self::Xai(v) => v.is_empty(),
       Self::Antigravity(v) => v.is_empty(),
@@ -55,6 +59,7 @@ impl NativeModelCatalog {
   pub fn len(&self) -> usize {
     match self {
       Self::Codex(v) => v.len(),
+      Self::CodexCli(v) => v.len(),
       Self::Claude(v) => v.len(),
       Self::Xai(v) => v.len(),
       Self::Antigravity(v) => v.len(),
@@ -66,6 +71,7 @@ impl NativeModelCatalog {
   pub fn to_model_infos(&self) -> Vec<ModelInfo> {
     match self {
       Self::Codex(v) => to_model_infos(v),
+      Self::CodexCli(v) => to_model_infos(v),
       Self::Claude(v) => to_model_infos(v),
       Self::Xai(v) => to_model_infos(v),
       Self::Antigravity(v) => to_model_infos(v),
@@ -76,6 +82,7 @@ impl NativeModelCatalog {
   pub fn find_model_info(&self, id: &str) -> Option<ModelInfo> {
     match self {
       Self::Codex(v) => find_model_info(v, id),
+      Self::CodexCli(v) => find_model_info(v, id),
       Self::Claude(v) => find_model_info(v, id),
       Self::Xai(v) => find_model_info(v, id),
       Self::Antigravity(v) => find_model_info(v, id),
@@ -243,6 +250,10 @@ impl ModelsCache {
         .store
         .load_models::<CodexModel>(kind)?
         .map(NativeModelCatalog::Codex),
+      ProviderKind::CodexCli => self
+        .store
+        .load_models::<CodexCliModel>(kind)?
+        .map(NativeModelCatalog::CodexCli),
       ProviderKind::Claude => self
         .store
         .load_models::<ClaudeModel>(kind)?
@@ -272,6 +283,7 @@ impl ModelsCache {
     }
     match catalog {
       NativeModelCatalog::Codex(m) => self.store.save_models(ProviderKind::Codex, m),
+      NativeModelCatalog::CodexCli(m) => self.store.save_models(ProviderKind::CodexCli, m),
       NativeModelCatalog::Claude(m) => self.store.save_models(ProviderKind::Claude, m),
       NativeModelCatalog::Xai(m) => self.store.save_models(ProviderKind::Xai, m),
       NativeModelCatalog::Antigravity(m) => self.store.save_models(ProviderKind::Antigravity, m),

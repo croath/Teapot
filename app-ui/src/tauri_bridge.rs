@@ -239,7 +239,7 @@ pub struct AppConfigDto {
 }
 
 fn default_provider() -> String {
-  "codex".into()
+  "codex-cli".into()
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -249,12 +249,43 @@ pub struct AuthStatus {
   pub authenticated: bool,
   pub account: Option<String>,
   pub auth_method: String,
+  #[serde(default = "default_true")]
+  pub supports_auth: bool,
+  #[serde(default = "default_true")]
+  pub installed: bool,
+  #[serde(default)]
+  pub command: String,
+  #[serde(default)]
+  pub requires_local_cli: bool,
+  pub install_hint: Option<String>,
+}
+
+fn default_true() -> bool {
+  true
 }
 
 impl AuthStatus {
   pub fn is_import(&self) -> bool {
     self.auth_method == "credential-import"
   }
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderInfo {
+  pub id: String,
+  pub label: String,
+  #[serde(default)]
+  pub description: String,
+  #[serde(default)]
+  pub command: String,
+  #[serde(default = "default_true")]
+  pub installed: bool,
+  #[serde(default = "default_true")]
+  pub supports_auth: bool,
+  #[serde(default)]
+  pub requires_local_cli: bool,
+  pub install_hint: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

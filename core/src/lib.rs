@@ -31,11 +31,11 @@ pub use paths::{
   project_dirs, remove_legacy_dirs,
 };
 pub use providers::{
-  AntigravityProvider, AuthEntry, ClaudeProvider, CodexProvider, ExecRequest, ExecResponse,
-  ExecStream, ExecStreamEvent, ModelInfo, ModelsCache, ModelsStore, NativeModelCatalog,
-  PinnedProvider, PromptRequest, Provider, ProviderAuth, ProviderEvent, ProviderExecutor,
-  ProviderKind, ProviderModel, ProviderRuntime, ProviderSession, SpawnSpec, StdoutCodec,
-  VertexProvider, VertexSession, XaiProvider, all_providers, default_models_dir, expand_args,
-  family_for_name, flatten_messages, import_service_account, pinned_provider, provider_by_name,
-  provider_for, resolve_binary, stdin_prompt,
+  AntigravityProvider, AuthEntry, ClaudeProvider, CodexCliProvider, CodexProvider, ExecRequest,
+  ExecResponse, ExecStream, ExecStreamEvent, ModelInfo, ModelsCache, ModelsStore,
+  NativeModelCatalog, PinnedProvider, PromptRequest, Provider, ProviderAuth, ProviderEvent,
+  ProviderExecutor, ProviderKind, ProviderModel, ProviderRuntime, ProviderSession, SpawnSpec,
+  StdoutCodec, VertexProvider, VertexSession, XaiProvider, all_providers, augmented_path,
+  default_models_dir, expand_args, family_for_name, flatten_messages, import_service_account,
+  offered_providers, pinned_provider, provider_by_name, provider_for, resolve_binary, stdin_prompt,
 };
