@@ -139,6 +139,8 @@ enum AuthCommands {
 enum CliProvider {
   #[value(name = "codex-cli")]
   CodexCli,
+  #[value(name = "claude-cli")]
+  ClaudeCli,
   Xai,
   Antigravity,
   Vertex,
@@ -148,6 +150,7 @@ impl CliProvider {
   fn kind(self) -> ProviderKind {
     match self {
       Self::CodexCli => ProviderKind::CodexCli,
+      Self::ClaudeCli => ProviderKind::ClaudeCli,
       Self::Xai => ProviderKind::Xai,
       Self::Antigravity => ProviderKind::Antigravity,
       Self::Vertex => ProviderKind::Vertex,

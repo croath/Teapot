@@ -6,6 +6,7 @@
 pub mod antigravity;
 pub mod auth_entry;
 pub mod claude;
+pub mod claude_cli;
 pub mod codex;
 pub mod codex_cli;
 pub mod compact;
@@ -23,6 +24,7 @@ pub mod xai;
 pub use antigravity::{AntigravityProvider, StoredAuth as AntigravityAuth};
 pub use auth_entry::AuthEntry;
 pub use claude::{ClaudeProvider, StoredAuth as ClaudeAuth};
+pub use claude_cli::{ClaudeCliModel, ClaudeCliProvider};
 pub use codex::{CodexProvider, StoredAuth as CodexAuth};
 pub use codex_cli::{CodexCliModel, CodexCliProvider};
 pub use compact::{ExecCompactRequest, ExecCompactResponse};
@@ -69,6 +71,7 @@ pub fn provider_for(kind: ProviderKind) -> Arc<dyn ProviderAuth> {
     ProviderKind::Codex => Arc::new(CodexProvider::new()),
     ProviderKind::CodexCli => Arc::new(CodexCliProvider::new()),
     ProviderKind::Claude => Arc::new(ClaudeProvider::new()),
+    ProviderKind::ClaudeCli => Arc::new(ClaudeCliProvider::new()),
     ProviderKind::Xai => Arc::new(XaiProvider::new()),
     ProviderKind::Antigravity => Arc::new(AntigravityProvider::new()),
     ProviderKind::Vertex => Arc::new(VertexProvider::new()),

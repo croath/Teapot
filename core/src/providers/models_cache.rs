@@ -14,6 +14,7 @@ use crate::error::{AppError, AppResult};
 use crate::providers::ProviderKind;
 use crate::providers::antigravity::AntigravityModel;
 use crate::providers::claude::ClaudeModel;
+use crate::providers::claude_cli::ClaudeCliModel;
 use crate::providers::codex::CodexModel;
 use crate::providers::codex_cli::CodexCliModel;
 use crate::providers::model_info::{ModelInfo, find_model_info, to_model_infos};
@@ -28,6 +29,7 @@ pub enum NativeModelCatalog {
   Codex(Vec<CodexModel>),
   CodexCli(Vec<CodexCliModel>),
   Claude(Vec<ClaudeModel>),
+  ClaudeCli(Vec<ClaudeCliModel>),
   Xai(Vec<XaiModel>),
   Antigravity(Vec<AntigravityModel>),
   Vertex(Vec<VertexModel>),
@@ -39,6 +41,7 @@ impl NativeModelCatalog {
       Self::Codex(_) => ProviderKind::Codex,
       Self::CodexCli(_) => ProviderKind::CodexCli,
       Self::Claude(_) => ProviderKind::Claude,
+      Self::ClaudeCli(_) => ProviderKind::ClaudeCli,
       Self::Xai(_) => ProviderKind::Xai,
       Self::Antigravity(_) => ProviderKind::Antigravity,
       Self::Vertex(_) => ProviderKind::Vertex,
@@ -50,6 +53,7 @@ impl NativeModelCatalog {
       Self::Codex(v) => v.is_empty(),
       Self::CodexCli(v) => v.is_empty(),
       Self::Claude(v) => v.is_empty(),
+      Self::ClaudeCli(v) => v.is_empty(),
       Self::Xai(v) => v.is_empty(),
       Self::Antigravity(v) => v.is_empty(),
       Self::Vertex(v) => v.is_empty(),
@@ -61,6 +65,7 @@ impl NativeModelCatalog {
       Self::Codex(v) => v.len(),
       Self::CodexCli(v) => v.len(),
       Self::Claude(v) => v.len(),
+      Self::ClaudeCli(v) => v.len(),
       Self::Xai(v) => v.len(),
       Self::Antigravity(v) => v.len(),
       Self::Vertex(v) => v.len(),
@@ -73,6 +78,7 @@ impl NativeModelCatalog {
       Self::Codex(v) => to_model_infos(v),
       Self::CodexCli(v) => to_model_infos(v),
       Self::Claude(v) => to_model_infos(v),
+      Self::ClaudeCli(v) => to_model_infos(v),
       Self::Xai(v) => to_model_infos(v),
       Self::Antigravity(v) => to_model_infos(v),
       Self::Vertex(v) => to_model_infos(v),
@@ -84,6 +90,7 @@ impl NativeModelCatalog {
       Self::Codex(v) => find_model_info(v, id),
       Self::CodexCli(v) => find_model_info(v, id),
       Self::Claude(v) => find_model_info(v, id),
+      Self::ClaudeCli(v) => find_model_info(v, id),
       Self::Xai(v) => find_model_info(v, id),
       Self::Antigravity(v) => find_model_info(v, id),
       Self::Vertex(v) => find_model_info(v, id),
@@ -258,6 +265,10 @@ impl ModelsCache {
         .store
         .load_models::<ClaudeModel>(kind)?
         .map(NativeModelCatalog::Claude),
+      ProviderKind::ClaudeCli => self
+        .store
+        .load_models::<ClaudeCliModel>(kind)?
+        .map(NativeModelCatalog::ClaudeCli),
       ProviderKind::Xai => self
         .store
         .load_models::<XaiModel>(kind)?
@@ -285,6 +296,7 @@ impl ModelsCache {
       NativeModelCatalog::Codex(m) => self.store.save_models(ProviderKind::Codex, m),
       NativeModelCatalog::CodexCli(m) => self.store.save_models(ProviderKind::CodexCli, m),
       NativeModelCatalog::Claude(m) => self.store.save_models(ProviderKind::Claude, m),
+      NativeModelCatalog::ClaudeCli(m) => self.store.save_models(ProviderKind::ClaudeCli, m),
       NativeModelCatalog::Xai(m) => self.store.save_models(ProviderKind::Xai, m),
       NativeModelCatalog::Antigravity(m) => self.store.save_models(ProviderKind::Antigravity, m),
       NativeModelCatalog::Vertex(m) => self.store.save_models(ProviderKind::Vertex, m),

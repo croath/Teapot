@@ -15,6 +15,7 @@ const DEFAULT_PROVIDER: &str = "codex-cli";
 fn fallback_providers() -> Vec<ProviderInfo> {
   [
     ("codex-cli", "Codex CLI", false),
+    ("claude-cli", "Claude CLI", false),
     ("xai", "xAI", true),
     ("antigravity", "Antigravity", true),
     ("vertex", "Vertex", true),

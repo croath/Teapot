@@ -15,6 +15,8 @@ pub enum ProviderKind {
   #[serde(rename = "codex-cli")]
   CodexCli,
   Claude,
+  #[serde(rename = "claude-cli")]
+  ClaudeCli,
   Xai,
   Antigravity,
   Vertex,
@@ -26,6 +28,7 @@ impl ProviderKind {
     ProviderKind::Codex,
     ProviderKind::CodexCli,
     ProviderKind::Claude,
+    ProviderKind::ClaudeCli,
     ProviderKind::Xai,
     ProviderKind::Antigravity,
     ProviderKind::Vertex,
@@ -37,6 +40,7 @@ impl ProviderKind {
   /// offered as selectable backends.
   pub const OFFERED: &'static [ProviderKind] = &[
     ProviderKind::CodexCli,
+    ProviderKind::ClaudeCli,
     ProviderKind::Xai,
     ProviderKind::Antigravity,
     ProviderKind::Vertex,
@@ -51,6 +55,7 @@ impl ProviderKind {
       Self::Codex => "codex",
       Self::CodexCli => "codex-cli",
       Self::Claude => "claude",
+      Self::ClaudeCli => "claude-cli",
       Self::Xai => "xai",
       Self::Antigravity => "antigravity",
       Self::Vertex => "vertex",
@@ -63,6 +68,7 @@ impl ProviderKind {
       Self::Codex => "Codex",
       Self::CodexCli => "Codex CLI",
       Self::Claude => "Claude",
+      Self::ClaudeCli => "Claude CLI",
       Self::Xai => "xAI",
       Self::Antigravity => "Antigravity",
       Self::Vertex => "Vertex",
@@ -71,7 +77,7 @@ impl ProviderKind {
 
   /// True when serve/execute needs a local CLI binary on PATH (`codex`, …).
   pub const fn requires_local_cli(self) -> bool {
-    matches!(self, Self::CodexCli)
+    matches!(self, Self::CodexCli | Self::ClaudeCli)
   }
 
   /// How to install the local CLI, if this provider needs one.
@@ -79,6 +85,9 @@ impl ProviderKind {
     match self {
       Self::CodexCli => Some(
         "Install Codex CLI, then restart Teapot. macOS: `brew install --cask codex` · or `npm install -g @openai/codex` · or `curl -fsSL https://chatgpt.com/codex/install.sh | sh`",
+      ),
+      Self::ClaudeCli => Some(
+        "Install Claude Code, then restart Teapot. `curl -fsSL https://claude.ai/install.sh | bash` · or `npm install -g @anthropic-ai/claude-code`",
       ),
       _ => None,
     }
@@ -130,7 +139,8 @@ impl FromStr for ProviderKind {
     match s {
       "codex" | "codex-ci" => Ok(Self::Codex),
       "codex-cli" | "codex-app-server" => Ok(Self::CodexCli),
-      "claude" | "claude-cli" => Ok(Self::Claude),
+      "claude" => Ok(Self::Claude),
+      "claude-cli" | "claude-code" => Ok(Self::ClaudeCli),
       "xai" | "grok" | "grok-build" | "grok-build-cli" => Ok(Self::Xai),
       "antigravity" | "agy" | "antigravity-cli" => Ok(Self::Antigravity),
       "vertex" | "vertex-ai" | "gemini-vertex" => Ok(Self::Vertex),
@@ -159,6 +169,7 @@ mod tests {
   #[test]
   fn offered_hides_codex_and_claude() {
     assert!(ProviderKind::CodexCli.is_offered());
+    assert!(ProviderKind::ClaudeCli.is_offered());
     assert!(ProviderKind::Xai.is_offered());
     assert!(!ProviderKind::Codex.is_offered());
     assert!(!ProviderKind::Claude.is_offered());
@@ -169,10 +180,28 @@ mod tests {
       ProviderKind::OFFERED,
       &[
         ProviderKind::CodexCli,
+        ProviderKind::ClaudeCli,
         ProviderKind::Xai,
         ProviderKind::Antigravity,
         ProviderKind::Vertex,
       ]
+    );
+  }
+
+  #[test]
+  fn parse_claude_cli() {
+    assert_eq!(
+      ProviderKind::parse("claude-cli").unwrap(),
+      ProviderKind::ClaudeCli
+    );
+    assert_eq!(
+      ProviderKind::parse("claude-code").unwrap(),
+      ProviderKind::ClaudeCli
+    );
+    assert_eq!(ProviderKind::ClaudeCli.as_str(), "claude-cli");
+    assert_ne!(
+      ProviderKind::parse("claude").unwrap(),
+      ProviderKind::ClaudeCli
     );
   }
 }

@@ -86,7 +86,7 @@ pub struct AppConfigDto {
   pub listen: String,
   /// Empty string means no API key (default).
   pub api_key: String,
-  /// Pinned provider id (`codex-cli`, `xai`, `antigravity`, `vertex`).
+  /// Pinned provider id (`codex-cli`, `claude-cli`, `xai`, `antigravity`, `vertex`).
   pub provider: String,
 }
 
