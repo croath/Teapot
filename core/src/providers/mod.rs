@@ -11,6 +11,7 @@ pub mod codex;
 pub mod codex_cli;
 pub mod compact;
 pub mod execute;
+pub mod grok_cli;
 pub mod kind;
 pub mod model_info;
 pub mod models_cache;
@@ -29,6 +30,7 @@ pub use codex::{CodexProvider, StoredAuth as CodexAuth};
 pub use codex_cli::{CodexCliModel, CodexCliProvider};
 pub use compact::{ExecCompactRequest, ExecCompactResponse};
 pub use execute::{ExecRequest, ExecResponse, ExecStream, ExecStreamEvent};
+pub use grok_cli::{GrokCliModel, GrokCliProvider};
 pub use kind::ProviderKind;
 pub use model_info::{ModelInfo, ProviderModel};
 pub use models_cache::{ModelsCache, NativeModelCatalog};
@@ -50,7 +52,7 @@ use std::sync::Arc;
 
 /// Providers offered in CLI and the desktop UI.
 ///
-/// Hidden backends (`codex`, `claude`) remain in [`ProviderKind::ALL`] and
+/// Hidden backends (`codex`, `claude`, `xai`) remain in [`ProviderKind::ALL`] and
 /// [`provider_for`].
 pub fn all_providers() -> Vec<Arc<dyn ProviderAuth>> {
   offered_providers()
@@ -72,6 +74,7 @@ pub fn provider_for(kind: ProviderKind) -> Arc<dyn ProviderAuth> {
     ProviderKind::CodexCli => Arc::new(CodexCliProvider::new()),
     ProviderKind::Claude => Arc::new(ClaudeProvider::new()),
     ProviderKind::ClaudeCli => Arc::new(ClaudeCliProvider::new()),
+    ProviderKind::GrokCli => Arc::new(GrokCliProvider::new()),
     ProviderKind::Xai => Arc::new(XaiProvider::new()),
     ProviderKind::Antigravity => Arc::new(AntigravityProvider::new()),
     ProviderKind::Vertex => Arc::new(VertexProvider::new()),

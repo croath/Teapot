@@ -17,6 +17,7 @@ use crate::providers::codex::CodexProvider;
 use crate::providers::codex_cli::CodexCliProvider;
 use crate::providers::compact::{ExecCompactRequest, ExecCompactResponse};
 use crate::providers::execute::{ExecRequest, ExecResponse, ExecStream};
+use crate::providers::grok_cli::GrokCliProvider;
 use crate::providers::model_info::{ModelInfo, ProviderModel};
 use crate::providers::models_cache::NativeModelCatalog;
 use crate::providers::vertex::VertexProvider;
@@ -30,6 +31,7 @@ pub enum PinnedProvider {
   CodexCli(CodexCliProvider),
   Claude(ClaudeProvider),
   ClaudeCli(ClaudeCliProvider),
+  GrokCli(GrokCliProvider),
   Xai(XaiProvider),
   Antigravity(AntigravityProvider),
   Vertex(VertexProvider),
@@ -43,6 +45,7 @@ impl PinnedProvider {
       ProviderKind::CodexCli => Self::CodexCli(CodexCliProvider::new()),
       ProviderKind::Claude => Self::Claude(ClaudeProvider::new()),
       ProviderKind::ClaudeCli => Self::ClaudeCli(ClaudeCliProvider::new()),
+      ProviderKind::GrokCli => Self::GrokCli(GrokCliProvider::new()),
       ProviderKind::Xai => Self::Xai(XaiProvider::new()),
       ProviderKind::Antigravity => Self::Antigravity(AntigravityProvider::new()),
       ProviderKind::Vertex => Self::Vertex(VertexProvider::new()),
@@ -55,6 +58,7 @@ impl PinnedProvider {
       Self::CodexCli(_) => ProviderKind::CodexCli,
       Self::Claude(_) => ProviderKind::Claude,
       Self::ClaudeCli(_) => ProviderKind::ClaudeCli,
+      Self::GrokCli(_) => ProviderKind::GrokCli,
       Self::Xai(_) => ProviderKind::Xai,
       Self::Antigravity(_) => ProviderKind::Antigravity,
       Self::Vertex(_) => ProviderKind::Vertex,
@@ -68,6 +72,7 @@ impl PinnedProvider {
       Self::CodexCli(p) => p,
       Self::Claude(p) => p,
       Self::ClaudeCli(p) => p,
+      Self::GrokCli(p) => p,
       Self::Xai(p) => p,
       Self::Antigravity(p) => p,
       Self::Vertex(p) => p,
@@ -86,6 +91,7 @@ impl PinnedProvider {
       Self::CodexCli(p) => p.session_needs_refresh().await,
       Self::Claude(p) => p.session_needs_refresh().await,
       Self::ClaudeCli(p) => p.session_needs_refresh().await,
+      Self::GrokCli(p) => p.session_needs_refresh().await,
       Self::Xai(p) => p.session_needs_refresh().await,
       Self::Antigravity(p) => p.session_needs_refresh().await,
       Self::Vertex(p) => p.session_needs_refresh().await,
@@ -103,11 +109,15 @@ impl PinnedProvider {
         p.ensure_session().await?;
         return Ok(());
       }
+      Self::GrokCli(p) => {
+        p.ensure_session().await?;
+        return Ok(());
+      }
       _ => {}
     }
     let entry = self.ensure_auth(store).await?;
     match self {
-      Self::CodexCli(_) | Self::ClaudeCli(_) => {}
+      Self::CodexCli(_) | Self::ClaudeCli(_) | Self::GrokCli(_) => {}
       Self::Codex(p) => {
         p.set_session(entry.into_codex()?).await;
       }
@@ -144,6 +154,7 @@ impl PinnedProvider {
       Self::CodexCli(p) => p.execute(req).await,
       Self::Claude(p) => p.execute(req).await,
       Self::ClaudeCli(p) => p.execute(req).await,
+      Self::GrokCli(p) => p.execute(req).await,
       Self::Xai(p) => p.execute(req).await,
       Self::Antigravity(p) => p.execute(req).await,
       Self::Vertex(p) => p.execute(req).await,
@@ -157,6 +168,7 @@ impl PinnedProvider {
       Self::CodexCli(p) => p.execute_stream(req).await,
       Self::Claude(p) => p.execute_stream(req).await,
       Self::ClaudeCli(p) => p.execute_stream(req).await,
+      Self::GrokCli(p) => p.execute_stream(req).await,
       Self::Xai(p) => p.execute_stream(req).await,
       Self::Antigravity(p) => p.execute_stream(req).await,
       Self::Vertex(p) => p.execute_stream(req).await,
@@ -170,6 +182,7 @@ impl PinnedProvider {
       Self::CodexCli(p) => p.execute_compact(req).await,
       Self::Claude(p) => p.execute_compact(req).await,
       Self::ClaudeCli(p) => p.execute_compact(req).await,
+      Self::GrokCli(p) => p.execute_compact(req).await,
       Self::Xai(p) => p.execute_compact(req).await,
       Self::Antigravity(p) => p.execute_compact(req).await,
       Self::Vertex(p) => p.execute_compact(req).await,
@@ -183,6 +196,7 @@ impl PinnedProvider {
       Self::CodexCli(p) => p.execute_compact_stream(req).await,
       Self::Claude(p) => p.execute_compact_stream(req).await,
       Self::ClaudeCli(p) => p.execute_compact_stream(req).await,
+      Self::GrokCli(p) => p.execute_compact_stream(req).await,
       Self::Xai(p) => p.execute_compact_stream(req).await,
       Self::Antigravity(p) => p.execute_compact_stream(req).await,
       Self::Vertex(p) => p.execute_compact_stream(req).await,
@@ -196,6 +210,7 @@ impl PinnedProvider {
       Self::CodexCli(p) => NativeModelCatalog::CodexCli(p.models().await?),
       Self::Claude(p) => NativeModelCatalog::Claude(p.models().await?),
       Self::ClaudeCli(p) => NativeModelCatalog::ClaudeCli(p.models().await?),
+      Self::GrokCli(p) => NativeModelCatalog::GrokCli(p.models().await?),
       Self::Xai(p) => NativeModelCatalog::Xai(p.models().await?),
       Self::Antigravity(p) => NativeModelCatalog::Antigravity(p.models().await?),
       Self::Vertex(p) => NativeModelCatalog::Vertex(p.models().await?),
@@ -214,6 +229,7 @@ impl PinnedProvider {
       Self::CodexCli(p) => p.model(id).await?.map(|m| m.to_model_info()),
       Self::Claude(p) => p.model(id).await?.map(|m| m.to_model_info()),
       Self::ClaudeCli(p) => p.model(id).await?.map(|m| m.to_model_info()),
+      Self::GrokCli(p) => p.model(id).await?.map(|m| m.to_model_info()),
       Self::Xai(p) => p.model(id).await?.map(|m| m.to_model_info()),
       Self::Antigravity(p) => p.model(id).await?.map(|m| m.to_model_info()),
       Self::Vertex(p) => p.model(id).await?.map(|m| m.to_model_info()),

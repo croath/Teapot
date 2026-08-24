@@ -17,6 +17,8 @@ pub enum ProviderKind {
   Claude,
   #[serde(rename = "claude-cli")]
   ClaudeCli,
+  #[serde(rename = "grok-cli")]
+  GrokCli,
   Xai,
   Antigravity,
   Vertex,
@@ -29,6 +31,7 @@ impl ProviderKind {
     ProviderKind::CodexCli,
     ProviderKind::Claude,
     ProviderKind::ClaudeCli,
+    ProviderKind::GrokCli,
     ProviderKind::Xai,
     ProviderKind::Antigravity,
     ProviderKind::Vertex,
@@ -36,12 +39,12 @@ impl ProviderKind {
 
   /// Providers listed in CLI pickers and the desktop UI.
   ///
-  /// `codex` and `claude` stay compiled (`ALL` / `PinnedProvider`) but are not
-  /// offered as selectable backends.
+  /// `codex`, `claude`, and `xai` stay compiled (`ALL` / `PinnedProvider`) but
+  /// are not offered as selectable backends.
   pub const OFFERED: &'static [ProviderKind] = &[
     ProviderKind::CodexCli,
     ProviderKind::ClaudeCli,
-    ProviderKind::Xai,
+    ProviderKind::GrokCli,
     ProviderKind::Antigravity,
     ProviderKind::Vertex,
   ];
@@ -56,6 +59,7 @@ impl ProviderKind {
       Self::CodexCli => "codex-cli",
       Self::Claude => "claude",
       Self::ClaudeCli => "claude-cli",
+      Self::GrokCli => "grok-cli",
       Self::Xai => "xai",
       Self::Antigravity => "antigravity",
       Self::Vertex => "vertex",
@@ -69,6 +73,7 @@ impl ProviderKind {
       Self::CodexCli => "Codex CLI",
       Self::Claude => "Claude",
       Self::ClaudeCli => "Claude CLI",
+      Self::GrokCli => "Grok CLI",
       Self::Xai => "xAI",
       Self::Antigravity => "Antigravity",
       Self::Vertex => "Vertex",
@@ -77,7 +82,7 @@ impl ProviderKind {
 
   /// True when serve/execute needs a local CLI binary on PATH (`codex`, …).
   pub const fn requires_local_cli(self) -> bool {
-    matches!(self, Self::CodexCli | Self::ClaudeCli)
+    matches!(self, Self::CodexCli | Self::ClaudeCli | Self::GrokCli)
   }
 
   /// How to install the local CLI, if this provider needs one.
@@ -88,6 +93,9 @@ impl ProviderKind {
       ),
       Self::ClaudeCli => Some(
         "Install Claude Code, then restart Teapot. `curl -fsSL https://claude.ai/install.sh | bash` · or `npm install -g @anthropic-ai/claude-code`",
+      ),
+      Self::GrokCli => Some(
+        "Install Grok Build CLI, then restart Teapot. `curl -fsSL https://x.ai/cli/install.sh | bash` · then `grok login`",
       ),
       _ => None,
     }
@@ -100,7 +108,7 @@ impl ProviderKind {
 
   /// True when this kind is listed in CLI and the desktop UI.
   pub const fn is_offered(self) -> bool {
-    !matches!(self, Self::Codex | Self::Claude)
+    !matches!(self, Self::Codex | Self::Claude | Self::Xai)
   }
 
   /// Reject kinds that are compiled but not offered in CLI/UI.
@@ -141,7 +149,8 @@ impl FromStr for ProviderKind {
       "codex-cli" | "codex-app-server" => Ok(Self::CodexCli),
       "claude" => Ok(Self::Claude),
       "claude-cli" | "claude-code" => Ok(Self::ClaudeCli),
-      "xai" | "grok" | "grok-build" | "grok-build-cli" => Ok(Self::Xai),
+      "grok-cli" | "grok" | "grok-build" | "grok-build-cli" => Ok(Self::GrokCli),
+      "xai" => Ok(Self::Xai),
       "antigravity" | "agy" | "antigravity-cli" => Ok(Self::Antigravity),
       "vertex" | "vertex-ai" | "gemini-vertex" => Ok(Self::Vertex),
       other => Err(AppError::BadRequest(format!("unknown provider `{other}`"))),
@@ -167,25 +176,42 @@ mod tests {
   }
 
   #[test]
-  fn offered_hides_codex_and_claude() {
+  fn offered_hides_codex_claude_and_xai() {
     assert!(ProviderKind::CodexCli.is_offered());
     assert!(ProviderKind::ClaudeCli.is_offered());
-    assert!(ProviderKind::Xai.is_offered());
+    assert!(ProviderKind::GrokCli.is_offered());
+    assert!(!ProviderKind::Xai.is_offered());
     assert!(!ProviderKind::Codex.is_offered());
     assert!(!ProviderKind::Claude.is_offered());
     assert!(ProviderKind::Codex.require_offered().is_err());
     assert!(ProviderKind::Claude.require_offered().is_err());
+    assert!(ProviderKind::Xai.require_offered().is_err());
     assert_eq!(ProviderKind::DEFAULT, ProviderKind::CodexCli);
     assert_eq!(
       ProviderKind::OFFERED,
       &[
         ProviderKind::CodexCli,
         ProviderKind::ClaudeCli,
-        ProviderKind::Xai,
+        ProviderKind::GrokCli,
         ProviderKind::Antigravity,
         ProviderKind::Vertex,
       ]
     );
+  }
+
+  #[test]
+  fn parse_grok_cli() {
+    assert_eq!(
+      ProviderKind::parse("grok-cli").unwrap(),
+      ProviderKind::GrokCli
+    );
+    assert_eq!(ProviderKind::parse("grok").unwrap(), ProviderKind::GrokCli);
+    assert_eq!(
+      ProviderKind::parse("grok-build").unwrap(),
+      ProviderKind::GrokCli
+    );
+    assert_eq!(ProviderKind::parse("xai").unwrap(), ProviderKind::Xai);
+    assert_eq!(ProviderKind::GrokCli.as_str(), "grok-cli");
   }
 
   #[test]

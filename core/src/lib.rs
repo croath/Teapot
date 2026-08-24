@@ -32,11 +32,11 @@ pub use paths::{
 };
 pub use providers::{
   AntigravityProvider, AuthEntry, ClaudeCliProvider, ClaudeProvider, CodexCliProvider,
-  CodexProvider, ExecRequest, ExecResponse, ExecStream, ExecStreamEvent, ModelInfo, ModelsCache,
-  ModelsStore, NativeModelCatalog, PinnedProvider, PromptRequest, Provider, ProviderAuth,
-  ProviderEvent, ProviderExecutor, ProviderKind, ProviderModel, ProviderRuntime, ProviderSession,
-  SpawnSpec, StdoutCodec, VertexProvider, VertexSession, XaiProvider, all_providers,
-  augmented_path, default_models_dir, expand_args, family_for_name, flatten_messages,
-  import_service_account, offered_providers, pinned_provider, provider_by_name, provider_for,
-  resolve_binary, stdin_prompt,
+  CodexProvider, ExecRequest, ExecResponse, ExecStream, ExecStreamEvent, GrokCliProvider,
+  ModelInfo, ModelsCache, ModelsStore, NativeModelCatalog, PinnedProvider, PromptRequest, Provider,
+  ProviderAuth, ProviderEvent, ProviderExecutor, ProviderKind, ProviderModel, ProviderRuntime,
+  ProviderSession, SpawnSpec, StdoutCodec, VertexProvider, VertexSession, XaiProvider,
+  all_providers, augmented_path, default_models_dir, expand_args, family_for_name,
+  flatten_messages, import_service_account, offered_providers, pinned_provider, provider_by_name,
+  provider_for, resolve_binary, stdin_prompt,
 };

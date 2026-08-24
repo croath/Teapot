@@ -2,12 +2,12 @@
 # Copy or edit this file; the CLI also searches ./config.toml and the platform config dir.
 #
 # Provider auth tokens are stored separately as TOML under the local app data
-# directory (see `teapotx auth path`). Offered: codex-cli, claude-cli, xai, antigravity, vertex.
+# directory (see `teapotx auth path`). Offered: codex-cli, claude-cli, grok-cli, antigravity, vertex.
 
 listen = "127.0.0.1:8080"
 # api_key = "change-me"
 
-# Optional provider key: codex-cli | claude-cli | xai | antigravity | vertex
+# Optional provider key: codex-cli | claude-cli | grok-cli | antigravity | vertex
 # provider = "codex-cli"
 
 # Stream provider tool/command progress as optional delta.reasoning_content / delta.status

@@ -16,7 +16,7 @@ fn fallback_providers() -> Vec<ProviderInfo> {
   [
     ("codex-cli", "Codex CLI", false),
     ("claude-cli", "Claude CLI", false),
-    ("xai", "xAI", true),
+    ("grok-cli", "Grok CLI", false),
     ("antigravity", "Antigravity", true),
     ("vertex", "Vertex", true),
   ]

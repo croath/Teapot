@@ -8,7 +8,8 @@
 //!   codex-cli.json   # unused: this provider has AuthMethod::None
 //!   claude.json
 //!   claude-cli.json  # unused: this provider has AuthMethod::None
-//!   xai.json
+//!   grok-cli.json    # unused: this provider has AuthMethod::None
+//!   xai.json         # unused when hidden from CLI/UI
 //!   antigravity.json
 //!   vertex.json
 //! ```
