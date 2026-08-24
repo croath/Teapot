@@ -1,14 +1,14 @@
 //! Grok Build `agent stdio` ACP client over JSON-RPC 2.0 (NDJSON).
 //!
-//! Spawn:
+//! Spawn (once per teapotx process):
 //! ```text
-//! grok agent --always-approve --no-leader -m <id> stdio
+//! grok agent --always-approve --no-leader stdio
 //! ```
 //!
 //! Stdin = JSON-RPC requests (`initialize`, `authenticate`, `session/new`,
 //! `session/prompt`). Stdout = JSON-RPC responses plus `session/update`
 //! notifications. Auth is owned by the local CLI (`grok login`); Teapot
-//! stores nothing.
+//! stores nothing. Model is selected per ACP session, not at spawn.
 
 use std::collections::HashMap;
 use std::process::Stdio;
@@ -71,27 +71,18 @@ pub struct AcpSession {
 }
 
 impl AcpSession {
-  pub async fn spawn(model: &str) -> AppResult<Self> {
+  pub async fn spawn() -> AppResult<Self> {
     let program = resolve_binary("grok").ok_or_else(|| {
       AppError::ProviderBinaryMissing(
         "grok: install Grok Build CLI and ensure `grok` is on PATH".into(),
       )
     })?;
 
-    let mut args: Vec<String> = vec![
-      "agent".into(),
-      "--always-approve".into(),
-      "--no-leader".into(),
-    ];
-    if !model.trim().is_empty() {
-      args.push("-m".into());
-      args.push(model.to_string());
-    }
-    args.push("stdio".into());
+    let args = ["agent", "--always-approve", "--no-leader", "stdio"];
 
     let mut cmd = Command::new(&program);
     cmd
-      .args(&args)
+      .args(args)
       .env("PATH", augmented_path())
       .env("GROK_DISABLE_AUTOUPDATER", "1")
       .stdin(Stdio::piped())
@@ -218,7 +209,7 @@ impl AcpSession {
     Ok(())
   }
 
-  pub async fn new_session(&self, system: Option<&str>) -> AppResult<String> {
+  pub async fn new_session(&self, system: Option<&str>, model: Option<&str>) -> AppResult<Value> {
     let cwd = std::env::current_dir()
       .ok()
       .and_then(|p| p.to_str().map(str::to_string))
@@ -227,7 +218,10 @@ impl AcpSession {
     if let Some(sys) = system.map(str::trim).filter(|s| !s.is_empty()) {
       meta["rules"] = json!(sys);
     }
-    let result = self
+    if let Some(m) = model.map(str::trim).filter(|s| !s.is_empty()) {
+      meta["model"] = json!(m);
+    }
+    self
       .request(
         "session/new",
         json!({
@@ -236,13 +230,61 @@ impl AcpSession {
           "_meta": meta
         }),
       )
-      .await?;
-    result
-      .get("sessionId")
-      .and_then(Value::as_str)
-      .filter(|s| !s.is_empty())
-      .map(str::to_string)
-      .ok_or_else(|| AppError::ProviderFailed("grok-cli: session/new missing sessionId".into()))
+      .await
+  }
+
+  /// Select the request model on a new session when the agent exposes a model config.
+  pub async fn apply_model(
+    &self,
+    session_id: &str,
+    model: &str,
+    session_new: &Value,
+  ) -> AppResult<()> {
+    let model = model.trim();
+    if model.is_empty() {
+      return Ok(());
+    }
+    let config_id = model_config_id(session_new).unwrap_or_else(|| "model".into());
+    if current_config_value(session_new, &config_id).as_deref() == Some(model) {
+      return Ok(());
+    }
+    match self
+      .request(
+        "session/set_config_option",
+        json!({
+          "sessionId": session_id,
+          "configId": config_id,
+          "value": model
+        }),
+      )
+      .await
+    {
+      Ok(_) => return Ok(()),
+      Err(e) => {
+        debug!(error = %e, model, "grok-cli: session/set_config_option model failed");
+      }
+    }
+    self
+      .request(
+        "session/set_model",
+        json!({
+          "sessionId": session_id,
+          "modelId": model
+        }),
+      )
+      .await
+      .map(|_| ())
+      .or_else(|e| {
+        warn!(error = %e, model, "grok-cli: could not set session model; using agent default");
+        Ok(())
+      })
+  }
+
+  pub async fn close_session(&self, session_id: &str) -> AppResult<()> {
+    self
+      .request("session/close", json!({ "sessionId": session_id }))
+      .await
+      .map(|_| ())
   }
 
   pub async fn start_prompt(&self, session_id: &str, prompt: &str) -> AppResult<PromptWaiter> {
@@ -260,6 +302,25 @@ impl AcpSession {
 
   pub async fn recv_notification(&mut self) -> Option<Notification> {
     self.notifications.recv().await
+  }
+
+  pub fn try_recv_notification(&mut self) -> Option<Notification> {
+    self.notifications.try_recv().ok()
+  }
+
+  /// True while the child is still running.
+  pub fn is_alive(&mut self) -> bool {
+    match self.child.try_wait() {
+      Ok(None) => true,
+      Ok(Some(status)) => {
+        debug!(?status, "grok-cli: agent process exited");
+        false
+      }
+      Err(error) => {
+        debug!(%error, "grok-cli: agent wait failed");
+        false
+      }
+    }
   }
 
   pub async fn request(&self, method: &str, params: Value) -> AppResult<Value> {
@@ -551,6 +612,54 @@ pub fn parse_session_update(params: &Value) -> StreamEvent {
   }
 }
 
+/// Session id on a notification, when the payload includes one.
+pub fn notification_session_id(note: &Notification) -> Option<&str> {
+  note
+    .params
+    .get("sessionId")
+    .or_else(|| note.params.get("session_id"))
+    .and_then(Value::as_str)
+    .filter(|s| !s.is_empty())
+}
+
+pub fn session_id_from(result: &Value) -> Option<String> {
+  result
+    .get("sessionId")
+    .or_else(|| result.get("session_id"))
+    .and_then(Value::as_str)
+    .filter(|s| !s.is_empty())
+    .map(str::to_string)
+}
+
+fn model_config_id(session_new: &Value) -> Option<String> {
+  let opts = session_new.get("configOptions").and_then(Value::as_array)?;
+  for opt in opts {
+    let id = opt.get("id").and_then(Value::as_str).unwrap_or("");
+    let category = opt.get("category").and_then(Value::as_str).unwrap_or("");
+    if category == "model" || id == "model" {
+      if !id.is_empty() {
+        return Some(id.to_string());
+      }
+    }
+  }
+  None
+}
+
+fn current_config_value(session_new: &Value, config_id: &str) -> Option<String> {
+  let opts = session_new.get("configOptions").and_then(Value::as_array)?;
+  for opt in opts {
+    let id = opt.get("id").and_then(Value::as_str).unwrap_or("");
+    if id == config_id {
+      return opt
+        .get("currentValue")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    }
+  }
+  None
+}
+
 /// True when this notification carries prompt-turn stream data.
 pub fn is_session_update(method: &str) -> bool {
   matches!(
@@ -721,5 +830,31 @@ mod tests {
         "outcome": { "outcome": "selected", "optionId": "allow-once" }
       })
     );
+  }
+
+  #[test]
+  fn model_config_id_from_session_new() {
+    let result = json!({
+      "sessionId": "s1",
+      "configOptions": [
+        { "id": "mode", "category": "mode", "currentValue": "code" },
+        { "id": "model", "category": "model", "currentValue": "grok-4.6" }
+      ]
+    });
+    assert_eq!(model_config_id(&result).as_deref(), Some("model"));
+    assert_eq!(
+      current_config_value(&result, "model").as_deref(),
+      Some("grok-4.6")
+    );
+    assert_eq!(session_id_from(&result).as_deref(), Some("s1"));
+  }
+
+  #[test]
+  fn notification_session_id_reads_params() {
+    let note = Notification {
+      method: "session/update".into(),
+      params: json!({ "sessionId": "abc", "update": {} }),
+    };
+    assert_eq!(notification_session_id(&note), Some("abc"));
   }
 }

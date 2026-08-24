@@ -6,45 +6,92 @@ mod models;
 mod stdio;
 
 use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+use tracing::info;
 
 use crate::auth::AuthMethod;
 use crate::error::{AppError, AppResult};
 use crate::providers::ProviderKind;
-use crate::providers::traits::{PromptRequest, Provider, SpawnSpec, StdoutCodec, resolve_binary};
+use crate::providers::traits::{PromptRequest, Provider, SpawnSpec, StdoutCodec};
+
+use stdio::AcpSession;
 
 pub use models::{GrokCliModel, parse_models_output};
 
 /// Grok Build CLI via `grok agent stdio` (no Teapot-stored credentials).
 ///
-/// Each execute spawns a `grok agent --always-approve stdio` process, speaks
-/// ACP JSON-RPC on stdin/stdout (stream in and stream out), and reads
-/// `session/update` chunks. Auth lives in the local Grok login (`grok login`).
-#[derive(Debug, Clone, Default)]
-pub struct GrokCliProvider;
+/// One `grok agent --always-approve --no-leader stdio` process is started with
+/// teapotx and reused. Each HTTP execute opens a fresh ACP session
+/// (`session/new` → `session/prompt`) so requests do not share conversation
+/// history. Auth lives in the local Grok login (`grok login`).
+#[derive(Clone)]
+pub struct GrokCliProvider {
+  session: Arc<Mutex<Option<AcpSession>>>,
+}
 
-impl GrokCliProvider {
-  pub fn new() -> Self {
-    Self
-  }
-
-  /// Confirm the `grok` binary is on PATH (called at session bootstrap).
-  pub async fn ensure_session(&self) -> AppResult<()> {
-    let _ = require_grok_binary()?;
-    Ok(())
-  }
-
-  /// True when the local CLI is missing (no long-lived process to keep alive).
-  pub async fn session_needs_refresh(&self) -> bool {
-    resolve_binary("grok").is_none()
+impl fmt::Debug for GrokCliProvider {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.debug_struct("GrokCliProvider").finish_non_exhaustive()
   }
 }
 
-fn require_grok_binary() -> AppResult<String> {
-  resolve_binary("grok").ok_or_else(|| {
-    AppError::ProviderBinaryMissing(
-      "grok: install Grok Build CLI and ensure `grok` is on PATH".into(),
-    )
-  })
+impl GrokCliProvider {
+  pub fn new() -> Self {
+    Self {
+      session: Arc::new(Mutex::new(None)),
+    }
+  }
+
+  /// Start `grok agent stdio` if it is not running (or restart if it died).
+  pub async fn ensure_session(&self) -> AppResult<()> {
+    let mut guard = self.lock_session().await?;
+    let _ = guard.as_mut();
+    Ok(())
+  }
+
+  /// True when the long-lived agent is missing or has exited.
+  pub async fn session_needs_refresh(&self) -> bool {
+    let mut guard = self.session.lock().await;
+    match guard.as_mut() {
+      Some(session) => !session.is_alive(),
+      None => true,
+    }
+  }
+
+  pub(super) async fn lock_session(
+    &self,
+  ) -> AppResult<tokio::sync::MutexGuard<'_, Option<AcpSession>>> {
+    let mut guard = self.session.lock().await;
+    let restart = match guard.as_mut() {
+      None => true,
+      Some(session) => !session.is_alive(),
+    };
+    if restart {
+      *guard = None;
+      let session = AcpSession::spawn().await?;
+      session.handshake().await?;
+      info!("grok-cli: agent started (stdio ACP, reused for this process)");
+      *guard = Some(session);
+    }
+    Ok(guard)
+  }
+
+  pub(super) fn session_mut<'a>(
+    guard: &'a mut tokio::sync::MutexGuard<'_, Option<AcpSession>>,
+  ) -> AppResult<&'a mut AcpSession> {
+    guard
+      .as_mut()
+      .ok_or_else(|| AppError::Internal("grok-cli: agent session missing after connect".into()))
+  }
+}
+
+impl Default for GrokCliProvider {
+  fn default() -> Self {
+    Self::new()
+  }
 }
 
 impl Provider for GrokCliProvider {
