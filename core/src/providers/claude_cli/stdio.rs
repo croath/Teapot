@@ -1,6 +1,6 @@
 //! Claude Code `-p` stream-json client over stdio (NDJSON).
 //!
-//! Spawn:
+//! Spawn (reused for the teapotx process):
 //! ```text
 //! claude -p --output-format stream-json --input-format stream-json
 //!        --verbose --include-partial-messages --dangerously-skip-permissions
@@ -8,7 +8,9 @@
 //! ```
 //!
 //! Stdin = JSONL user messages (and control replies). Stdout = NDJSON events.
-//! Auth is owned by the local CLI (`claude auth login`); Teapot stores nothing.
+//! After a turn, stdin stays open; the next HTTP request sends `/clear` then a
+//! new user message so conversations stay isolated. Auth is owned by the local
+//! CLI (`claude auth login`); Teapot stores nothing.
 
 use std::process::Stdio;
 use std::sync::Arc;
@@ -50,6 +52,9 @@ pub struct StreamJsonSession {
   child: Child,
   stdin: Arc<Mutex<Option<ChildStdin>>>,
   stdout: BufReader<tokio::process::ChildStdout>,
+  model: String,
+  system: Option<String>,
+  needs_clear: bool,
 }
 
 impl StreamJsonSession {
@@ -123,7 +128,67 @@ impl StreamJsonSession {
       child,
       stdin: Arc::new(Mutex::new(Some(stdin))),
       stdout: BufReader::new(stdout),
+      model: model.to_string(),
+      system: system
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string),
+      needs_clear: false,
     })
+  }
+
+  pub fn needs_clear(&self) -> bool {
+    self.needs_clear
+  }
+
+  pub fn mark_turn_complete(&mut self) {
+    self.needs_clear = true;
+  }
+
+  pub fn matches(&self, model: &str, system: Option<&str>) -> bool {
+    self.model == model && normalize_system(self.system.as_deref()) == normalize_system(system)
+  }
+
+  /// True while the child is still running.
+  pub fn is_alive(&mut self) -> bool {
+    match self.child.try_wait() {
+      Ok(None) => true,
+      Ok(Some(status)) => {
+        debug!(?status, "claude-cli: process exited");
+        false
+      }
+      Err(error) => {
+        debug!(%error, "claude-cli: wait failed");
+        false
+      }
+    }
+  }
+
+  /// Drop conversation history in this process (`/clear`) so the next prompt
+  /// is a new session.
+  pub async fn reset_conversation(&mut self) -> AppResult<()> {
+    self.send_user("/clear").await?;
+    loop {
+      match self.recv_event().await {
+        Some(StreamEvent::Result {
+          is_error, error, ..
+        }) => {
+          if is_error {
+            return Err(AppError::ProviderFailed(
+              error.unwrap_or_else(|| "claude-cli: /clear returned an error".into()),
+            ));
+          }
+          self.needs_clear = false;
+          return Ok(());
+        }
+        Some(_) => {}
+        None => {
+          return Err(AppError::ProviderFailed(
+            "claude-cli: process closed during /clear".into(),
+          ));
+        }
+      }
+    }
   }
 
   pub async fn send_user(&self, text: &str) -> AppResult<()> {
@@ -147,14 +212,6 @@ impl StreamJsonSession {
       }
     });
     write_line(&self.stdin, &msg).await
-  }
-
-  pub async fn close_stdin(&self) -> AppResult<()> {
-    let mut guard = self.stdin.lock().await;
-    if let Some(mut stdin) = guard.take() {
-      stdin.shutdown().await?;
-    }
-    Ok(())
   }
 
   pub async fn recv_raw(&mut self) -> Option<String> {
@@ -219,6 +276,10 @@ async fn write_line(stdin: &Arc<Mutex<Option<ChildStdin>>>, msg: &Value) -> AppR
   stdin.write_all(&line).await?;
   stdin.flush().await?;
   Ok(())
+}
+
+fn normalize_system(system: Option<&str>) -> Option<&str> {
+  system.map(str::trim).filter(|s| !s.is_empty())
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -498,6 +559,14 @@ mod tests {
       }
       other => panic!("unexpected {other:?}"),
     }
+  }
+
+  #[test]
+  fn normalize_system_treats_blank_as_none() {
+    assert_eq!(normalize_system(None), None);
+    assert_eq!(normalize_system(Some("")), None);
+    assert_eq!(normalize_system(Some("  ")), None);
+    assert_eq!(normalize_system(Some(" rules ")), Some("rules"));
   }
 
   #[test]

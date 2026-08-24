@@ -14,7 +14,10 @@ use super::stdio::{StreamEvent, StreamJsonSession};
 
 impl ClaudeCliProvider {
   pub async fn execute(&self, req: &ExecRequest) -> AppResult<ExecResponse> {
-    let collected = run_prompt(req, None).await?;
+    let (system, _) = prompt_from_request(req);
+    let mut guard = self.lock_session(&req.model, system.as_deref()).await?;
+    let session = Self::session_mut(&mut guard)?;
+    let collected = run_prompt(session, req, None).await?;
     Ok(
       ExecResponse::new(req.model.clone(), collected.content)
         .with_usage(collected.prompt_tokens, collected.completion_tokens),
@@ -24,9 +27,26 @@ impl ClaudeCliProvider {
   pub async fn execute_stream(&self, req: &ExecRequest) -> AppResult<ExecStream> {
     let model = req.model.clone();
     let req = req.clone();
+    let this = self.clone();
     let (tx, rx) = exec_stream_channel(64);
     tokio::spawn(async move {
-      match run_prompt(&req, Some(&tx)).await {
+      let (system, _) = prompt_from_request(&req);
+      let mut guard = match this.lock_session(&req.model, system.as_deref()).await {
+        Ok(g) => g,
+        Err(e) => {
+          let _ = tx.send(Err(e)).await;
+          return;
+        }
+      };
+      let session = match ClaudeCliProvider::session_mut(&mut guard) {
+        Ok(s) => s,
+        Err(e) => {
+          let _ = tx.send(Err(e)).await;
+          return;
+        }
+      };
+
+      match run_prompt(session, &req, Some(&tx)).await {
         Ok(collected) => {
           let _ = tx
             .send(Ok(ExecStreamEvent::Meta {
@@ -71,17 +91,17 @@ struct CollectedTurn {
 }
 
 async fn run_prompt(
+  session: &mut StreamJsonSession,
   req: &ExecRequest,
   stream: Option<&mpsc::Sender<AppResult<ExecStreamEvent>>>,
 ) -> AppResult<CollectedTurn> {
-  let (system, prompt) = prompt_from_request(req);
+  let (_system, prompt) = prompt_from_request(req);
   if prompt.trim().is_empty() {
     return Err(AppError::BadRequest(
       "claude-cli: empty prompt after flattening messages".into(),
     ));
   }
 
-  let mut session = StreamJsonSession::spawn(&req.model, system.as_deref()).await?;
   session.send_user(&prompt).await?;
 
   let mut content = String::new();
@@ -91,7 +111,6 @@ async fn run_prompt(
 
   loop {
     let Some(event) = session.recv_event().await else {
-      let _ = session.close_stdin().await;
       return Err(AppError::ProviderFailed(
         "claude-cli: process closed before stream-json result (run `claude auth login` if needed)"
           .into(),
@@ -107,7 +126,7 @@ async fn run_prompt(
             .await
             .is_err()
           {
-            let _ = session.close_stdin().await;
+            session.mark_turn_complete();
             return Ok(CollectedTurn {
               content,
               streamed_chars,
@@ -139,7 +158,7 @@ async fn run_prompt(
         prompt_tokens = p;
         completion_tokens = c;
         if is_error {
-          let _ = session.close_stdin().await;
+          session.mark_turn_complete();
           return Err(AppError::ProviderFailed(error.unwrap_or_else(|| {
             "claude-cli: Claude Code returned an error (run `claude auth login` if needed)".into()
           })));
@@ -153,7 +172,7 @@ async fn run_prompt(
     }
   }
 
-  let _ = session.close_stdin().await;
+  session.mark_turn_complete();
   Ok(CollectedTurn {
     content,
     streamed_chars,

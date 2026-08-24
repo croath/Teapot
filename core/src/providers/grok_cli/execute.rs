@@ -11,13 +11,15 @@ use crate::providers::flatten_messages;
 
 use super::GrokCliProvider;
 use super::stdio::{
-  AcpSession, StreamEvent, is_session_update, parse_session_update, result_stop_reason,
-  result_text, usage_tokens,
+  AcpSession, StreamEvent, is_session_update, notification_session_id, parse_session_update,
+  result_stop_reason, result_text, session_id_from, usage_tokens,
 };
 
 impl GrokCliProvider {
   pub async fn execute(&self, req: &ExecRequest) -> AppResult<ExecResponse> {
-    let collected = run_prompt(req, None).await?;
+    let mut guard = self.lock_session().await?;
+    let session = Self::session_mut(&mut guard)?;
+    let collected = run_prompt(session, req, None).await?;
     Ok(
       ExecResponse::new(req.model.clone(), collected.content)
         .with_usage(collected.prompt_tokens, collected.completion_tokens),
@@ -27,9 +29,25 @@ impl GrokCliProvider {
   pub async fn execute_stream(&self, req: &ExecRequest) -> AppResult<ExecStream> {
     let model = req.model.clone();
     let req = req.clone();
+    let this = self.clone();
     let (tx, rx) = exec_stream_channel(64);
     tokio::spawn(async move {
-      match run_prompt(&req, Some(&tx)).await {
+      let mut guard = match this.lock_session().await {
+        Ok(g) => g,
+        Err(e) => {
+          let _ = tx.send(Err(e)).await;
+          return;
+        }
+      };
+      let session = match GrokCliProvider::session_mut(&mut guard) {
+        Ok(s) => s,
+        Err(e) => {
+          let _ = tx.send(Err(e)).await;
+          return;
+        }
+      };
+
+      match run_prompt(session, &req, Some(&tx)).await {
         Ok(collected) => {
           let _ = tx
             .send(Ok(ExecStreamEvent::Meta {
@@ -74,6 +92,7 @@ struct CollectedTurn {
 }
 
 async fn run_prompt(
+  session: &mut AcpSession,
   req: &ExecRequest,
   stream: Option<&mpsc::Sender<AppResult<ExecStreamEvent>>>,
 ) -> AppResult<CollectedTurn> {
@@ -84,9 +103,16 @@ async fn run_prompt(
     ));
   }
 
-  let mut session = AcpSession::spawn(&req.model).await?;
-  session.handshake().await?;
-  let session_id = session.new_session(system.as_deref()).await?;
+  while session.try_recv_notification().is_some() {}
+
+  let created = session
+    .new_session(system.as_deref(), Some(req.model.as_str()))
+    .await?;
+  let session_id = session_id_from(&created)
+    .ok_or_else(|| AppError::ProviderFailed("grok-cli: session/new missing sessionId".into()))?;
+  session
+    .apply_model(&session_id, &req.model, &created)
+    .await?;
   let waiter = session.start_prompt(&session_id, &prompt).await?;
   let wait_fut = waiter.wait();
   tokio::pin!(wait_fut);
@@ -96,15 +122,20 @@ async fn run_prompt(
   let mut prompt_tokens = 0u32;
   let mut completion_tokens = 0u32;
 
-  loop {
+  let outcome: AppResult<CollectedTurn> = loop {
     tokio::select! {
       note = session.recv_notification() => {
         let Some(note) = note else {
-          return Err(AppError::ProviderFailed(
+          break Err(AppError::ProviderFailed(
             "grok-cli: agent closed before session/prompt result (run `grok login` if needed)"
               .into(),
           ));
         };
+        if let Some(sid) = notification_session_id(&note) {
+          if sid != session_id {
+            continue;
+          }
+        }
         if !is_session_update(&note.method) {
           continue;
         }
@@ -118,7 +149,7 @@ async fn run_prompt(
                 .await
                 .is_err()
               {
-                return Ok(CollectedTurn {
+                break Ok(CollectedTurn {
                   content,
                   streamed_chars,
                   prompt_tokens,
@@ -149,7 +180,10 @@ async fn run_prompt(
         }
       }
       result = &mut wait_fut => {
-        let result = result?;
+        let result = match result {
+          Ok(v) => v,
+          Err(e) => break Err(e),
+        };
         let (p, c) = usage_tokens(&result);
         if p > 0 {
           prompt_tokens = p;
@@ -162,30 +196,26 @@ async fn run_prompt(
             content = text;
           }
         }
-        match result_stop_reason(&result) {
-          Some("refusal") => {
-            return Err(AppError::ProviderFailed(
-              "grok-cli: Grok refused to continue".into(),
-            ));
-          }
-          Some("cancelled") if content.is_empty() => {
-            return Err(AppError::ProviderFailed(
-              "grok-cli: turn cancelled before any assistant text".into(),
-            ));
-          }
-          _ => {}
-        }
-        break;
+        break match result_stop_reason(&result) {
+          Some("refusal") => Err(AppError::ProviderFailed(
+            "grok-cli: Grok refused to continue".into(),
+          )),
+          Some("cancelled") if content.is_empty() => Err(AppError::ProviderFailed(
+            "grok-cli: turn cancelled before any assistant text".into(),
+          )),
+          _ => Ok(CollectedTurn {
+            content,
+            streamed_chars,
+            prompt_tokens,
+            completion_tokens,
+          }),
+        };
       }
     }
-  }
+  };
 
-  Ok(CollectedTurn {
-    content,
-    streamed_chars,
-    prompt_tokens,
-    completion_tokens,
-  })
+  let _ = session.close_session(&session_id).await;
+  outcome
 }
 
 fn prompt_from_request(req: &ExecRequest) -> (Option<String>, String) {

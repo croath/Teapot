@@ -6,6 +6,11 @@ mod models;
 mod stdio;
 
 use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+use tracing::info;
 
 use crate::auth::AuthMethod;
 use crate::error::{AppError, AppResult};
@@ -14,19 +19,32 @@ use crate::providers::traits::{
   PromptRequest, Provider, SpawnSpec, StdoutCodec, resolve_binary, stdin_prompt,
 };
 
+use stdio::StreamJsonSession;
+
 pub use models::{ClaudeCliModel, builtin_models};
 
 /// Claude Code via `claude -p` stream-json (no Teapot-stored credentials).
 ///
-/// Each execute spawns a `claude` process, writes a user message on stdin,
-/// and reads NDJSON events from stdout. Auth lives in the local Claude Code
-/// login (`claude auth login`).
-#[derive(Debug, Clone, Default)]
-pub struct ClaudeCliProvider;
+/// One `claude -p` process is reused for HTTP execute. Each request is a fresh
+/// conversation (`/clear` between turns) so Chat Completions history is not
+/// stacked onto the previous call. Model / system changes respawn the child.
+/// Auth lives in the local Claude Code login (`claude auth login`).
+#[derive(Clone)]
+pub struct ClaudeCliProvider {
+  session: Arc<Mutex<Option<StreamJsonSession>>>,
+}
+
+impl fmt::Debug for ClaudeCliProvider {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.debug_struct("ClaudeCliProvider").finish_non_exhaustive()
+  }
+}
 
 impl ClaudeCliProvider {
   pub fn new() -> Self {
-    Self
+    Self {
+      session: Arc::new(Mutex::new(None)),
+    }
   }
 
   /// Confirm the `claude` binary is on PATH (called at session bootstrap).
@@ -35,9 +53,60 @@ impl ClaudeCliProvider {
     Ok(())
   }
 
-  /// True when the local CLI is missing (no long-lived process to keep alive).
+  /// True when a live child has exited and should be replaced on next execute.
   pub async fn session_needs_refresh(&self) -> bool {
-    resolve_binary("claude").is_none()
+    let mut guard = self.session.lock().await;
+    match guard.as_mut() {
+      Some(session) => !session.is_alive(),
+      None => false,
+    }
+  }
+
+  pub(super) async fn lock_session(
+    &self,
+    model: &str,
+    system: Option<&str>,
+  ) -> AppResult<tokio::sync::MutexGuard<'_, Option<StreamJsonSession>>> {
+    let mut guard = self.session.lock().await;
+    let restart = match guard.as_mut() {
+      None => true,
+      Some(session) => {
+        if !session.is_alive() || !session.matches(model, system) {
+          true
+        } else if session.needs_clear() {
+          match session.reset_conversation().await {
+            Ok(()) => false,
+            Err(e) => {
+              tracing::debug!(error = %e, "claude-cli: /clear failed; restarting process");
+              true
+            }
+          }
+        } else {
+          false
+        }
+      }
+    };
+    if restart {
+      *guard = None;
+      let session = StreamJsonSession::spawn(model, system).await?;
+      info!("claude-cli: stream-json started (reused for this process)");
+      *guard = Some(session);
+    }
+    Ok(guard)
+  }
+
+  pub(super) fn session_mut<'a>(
+    guard: &'a mut tokio::sync::MutexGuard<'_, Option<StreamJsonSession>>,
+  ) -> AppResult<&'a mut StreamJsonSession> {
+    guard.as_mut().ok_or_else(|| {
+      AppError::Internal("claude-cli: stream-json session missing after connect".into())
+    })
+  }
+}
+
+impl Default for ClaudeCliProvider {
+  fn default() -> Self {
+    Self::new()
   }
 }
 
