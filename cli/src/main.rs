@@ -134,12 +134,15 @@ enum AuthCommands {
   },
 }
 
-/// CLI provider selection (offered kinds only; `codex` / `claude` stay compiled).
+/// CLI provider selection (offered kinds only; `codex` / `claude` / `xai` stay compiled).
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum CliProvider {
   #[value(name = "codex-cli")]
   CodexCli,
-  Xai,
+  #[value(name = "claude-cli")]
+  ClaudeCli,
+  #[value(name = "grok-cli")]
+  GrokCli,
   Antigravity,
   Vertex,
 }
@@ -148,7 +151,8 @@ impl CliProvider {
   fn kind(self) -> ProviderKind {
     match self {
       Self::CodexCli => ProviderKind::CodexCli,
-      Self::Xai => ProviderKind::Xai,
+      Self::ClaudeCli => ProviderKind::ClaudeCli,
+      Self::GrokCli => ProviderKind::GrokCli,
       Self::Antigravity => ProviderKind::Antigravity,
       Self::Vertex => ProviderKind::Vertex,
     }

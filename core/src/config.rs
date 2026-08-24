@@ -13,7 +13,7 @@ pub struct Config {
   /// Optional API key. When set, clients must send `Authorization: Bearer <key>`
   /// or `x-api-key: <key>`.
   pub api_key: Option<String>,
-  /// Optional default provider (`codex-cli`, `xai`, `antigravity`, `vertex`).
+  /// Optional default provider (`codex-cli`, `claude-cli`, `grok-cli`, `antigravity`, `vertex`).
   pub provider: Option<String>,
   /// When true (default), stream provider tool/command progress as optional
   /// `reasoning_content` / `status` fields on Chat Completions deltas.

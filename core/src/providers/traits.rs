@@ -117,6 +117,8 @@ pub enum StdoutCodec {
   CodexJsonl,
   /// Claude Code `--output-format stream-json` NDJSON: emit text deltas.
   ClaudeStreamJson,
+  /// Grok Build `--output-format streaming-json` / ACP `session/update` NDJSON.
+  GrokStreamingJson,
 }
 
 /// How to spawn a provider process (produced by [`Provider::spawn_spec`]).

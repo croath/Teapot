@@ -5,6 +5,8 @@
 //! {data_local}/models/
 //!   codex.json
 //!   claude.json
+//!   claude-cli.json
+//!   grok-cli.json
 //!   xai.json
 //!   antigravity.json
 //!   vertex.json
